@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>NEW3DClass</class>
+ <widget class="QMainWindow" name="NEW3DClass">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>3D</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QVTKWidget" name="m_qVTKViewer" native="true">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>521</width>
+      <height>411</height>
+     </rect>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionOpen"/>
+    <addaction name="actionImport"/>
+    <addaction name="actionSave"/>
+   </widget>
+   <widget class="QMenu" name="menu3D">
+    <property name="title">
+     <string>3D</string>
+    </property>
+    <widget class="QMenu" name="menu2D">
+     <property name="title">
+      <string>2D</string>
+     </property>
+     <addaction name="actionX"/>
+     <addaction name="actionY"/>
+     <addaction name="actionZ"/>
+    </widget>
+    <addaction name="menu2D"/>
+    <addaction name="actionCacheImage"/>
+    <addaction name="action3D"/>
+   </widget>
+   <widget class="QMenu" name="menuRoi">
+    <property name="title">
+     <string>Roi</string>
+    </property>
+    <widget class="QMenu" name="interactorStyle">
+     <property name="title">
+      <string>Roi</string>
+     </property>
+     <addaction name="actionNormal"/>
+     <addaction name="actionRubber"/>
+    </widget>
+    <addaction name="interactorStyle"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menu3D"/>
+   <addaction name="menuRoi"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionOpen">
+   <property name="text">
+    <string>Open</string>
+   </property>
+  </action>
+  <action name="actionImport">
+   <property name="text">
+    <string>Import</string>
+   </property>
+  </action>
+  <action name="actionSave">
+   <property name="text">
+    <string>Save</string>
+   </property>
+  </action>
+  <action name="actionCacheImage">
+   <property name="text">
+    <string>CacheImage</string>
+   </property>
+  </action>
+  <action name="action3D">
+   <property name="text">
+    <string>3D</string>
+   </property>
+  </action>
+  <action name="actionX">
+   <property name="text">
+    <string>ShowX</string>
+   </property>
+  </action>
+  <action name="actionY">
+   <property name="text">
+    <string>ShowY</string>
+   </property>
+  </action>
+  <action name="actionZ">
+   <property name="text">
+    <string>2D</string>
+   </property>
+  </action>
+  <action name="actionpickdata">
+   <property name="text">
+    <string>pickdata</string>
+   </property>
+  </action>
+  <action name="actionNormal">
+   <property name="text">
+    <string>Normal</string>
+   </property>
+  </action>
+  <action name="actionRubber">
+   <property name="text">
+    <string>Rubber</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QVTKWidget</class>
+   <extends>QWidget</extends>
+   <header>D:\Program Files\PCL 1.8.0\3rdParty\VTK-7.1.1\VTK-7.1.1\GUISupport\Qt\qvtkwidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
