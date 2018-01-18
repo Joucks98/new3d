@@ -139,6 +139,7 @@ void ImageCallBack::updateCanvasSource2DActor(int extent[6], int x0, int x1, int
     imageCanvasSource2DActor->SetInputData(imageCanvasSource2D->GetOutput());
     imageCanvasSource2DActor->GetProperty()->SetOpacity(.5);
     imageCanvasSource2DActor->Update();
+    //imageCanvasSource2DActor->Modified();
 }
 
 void ImageCallBack::updateCanvasSource2DActor(int x0, int x1, int y0, int y1)
@@ -157,10 +158,11 @@ void ImageCallBack::updateCanvasSource2DActor(int x0, int x1, int y0, int y1)
     imageCanvasSource2D->DrawSegment(x1, y1, x1, y0);
     imageCanvasSource2D->DrawSegment(x1, y0, x0, y0);
     imageCanvasSource2D->Update();
-
     imageCanvasSource2DActor->SetInputData(imageCanvasSource2D->GetOutput());
     imageCanvasSource2DActor->GetProperty()->SetOpacity(.5);
     imageCanvasSource2DActor->Update();
+    //imageCanvasSource2DActor->Modified();
+
 }
 
 

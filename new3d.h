@@ -63,6 +63,7 @@ private slots:
     void on_actionRubber_toggled();
     void on_actionRubber_hovered();
     void on_actionX_triggered();
+    void on_actionY_triggered();
 
 private:
     void showPointCloud(bool updateOrNot);
@@ -77,6 +78,8 @@ private:
     void updatePointCloud(bool update);
     void updateImage(bool update);
 
+    vtkSmartPointer<vtkPoints> GetImageRoiPointsWorldData() const;
+
     vtkSmartPointer<vtkLookupTable> m_pLookupTable;
     vtkSmartPointer<vtkImageViewer2> m_pImageViewer;
     vtkSmartPointer<vtkInteractorStyle> m_pImageStyle;
@@ -88,13 +91,16 @@ private:
     vtkSmartPointer<vtkPolyData> m_pPointCloudPolyData;
     vtkSmartPointer<vtkActor> m_pPointCloudActor;
     vtkSmartPointer<vtkCubeAxesActor> m_pCubeAxesActor;
-    vtkSmartPointer<vtkImageActor> m_pROIActor;
-
+    vtkMTimeType m_roiMTimeCache;
+    vtkSmartPointer<vtkImageActor> m_pRoi2DActor;
+    vtkSmartPointer<vtkActor> m_pRoi3DActor;
 
 
 
     std::vector<DIM3::Point3d> m_point3dVec;
     vtkSmartPointer<vtkPoints> m_pPoints; // as a vtk object same to m_points3dVec
+
+    //vtkSmartPointer<vtkIdList> m_pRoiPointsIdList;
 
 
     bool isPointVecChanged;

@@ -36,7 +36,7 @@
 #include <vtkInteractorStyleImage.h>
 #include <vtkImageChangeInformation.h>
 #include <vtkImageExtractComponents.h>
-
+#include <vtkExtractVOI.h>
 
 #include "new3d.h"
 #include "InteractorStylePointCloud.h"
@@ -61,8 +61,11 @@ static vtkSmartPointer<vtkPoints> vec2vtkPoints(const vector<Point3d>& ptVec)
 
 
 
-NEW3D::NEW3D(QWidget *parent)
-    : QMainWindow(parent), m_pPointCloudPolyData(NULL), m_pPoints(NULL), isPointVecChanged(false)
+NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent), 
+                                m_pPointCloudPolyData(NULL), 
+                                m_pRoi3DActor(NULL), 
+                                m_pPoints(NULL), 
+                                isPointVecChanged(false)
 {
     ui.setupUi(this);
     ui.actionRubber->setCheckable(true);
@@ -96,10 +99,10 @@ NEW3D::NEW3D(QWidget *parent)
     pointCloudInteractor->SetPicker(areaPicker);
     pointCloudInteractor->SetInteractorStyle(m_pPointCloudStyle);
 
+    
+    m_pRoi2DActor = vtkSmartPointer<vtkImageActor>::New();
 
-    m_pROIActor = vtkSmartPointer<vtkImageActor>::New();
-
-
+    m_roiMTimeCache = m_pRoi2DActor->GetMTime();
 
     ui.actionZ->setEnabled(false);
     ui.action3D->setEnabled(false);
@@ -200,14 +203,14 @@ void NEW3D::on_actionRubber_toggled()
         vtkSmartPointer<ImageCallBack> imageCallback = vtkSmartPointer<ImageCallBack>::New();
         imageCallback->SetViewer(m_pImageViewer);
         imageCallback->SetPicker(propPicker);
-        imageCallback->SetCanvasSource2DActor(m_pROIActor);
+        imageCallback->SetCanvasSource2DActor(m_pRoi2DActor);
         m_pImageStyleRubber->AddObserver(vtkCommand::LeftButtonPressEvent, imageCallback);
         m_pImageStyleRubber->AddObserver(vtkCommand::LeftButtonReleaseEvent, imageCallback);
         m_pImageStyleRubber->AddObserver(vtkCommand::RightButtonPressEvent, imageCallback);
     }
     else
     {
-        m_pImageViewer->GetRenderer()->RemoveActor(m_pROIActor);
+        m_pImageViewer->GetRenderer()->RemoveActor(m_pRoi2DActor);
         m_pImageViewer->GetRenderWindow()->RemoveAllObservers();
         iteractor->SetInteractorStyle(m_pImageStyle);
     }
@@ -223,9 +226,9 @@ void NEW3D::on_actionRubber_hovered()
         int* d0 = m_pImageViewer->GetInput()->GetDimensions();
         int* e0 = m_pImageViewer->GetInput()->GetExtent();*/
 
-        double* origin1 = m_pROIActor->GetInput()->GetOrigin(); // default always zero point unless change image information.
-        int* d1 = m_pROIActor->GetInput()->GetDimensions();
-        int* e1 = m_pROIActor->GetInput()->GetExtent(); // the global coordiates
+        double* origin1 = m_pRoi2DActor->GetInput()->GetOrigin(); // default always zero point unless change image information.
+        int* d1 = m_pRoi2DActor->GetInput()->GetDimensions();
+        int* e1 = m_pRoi2DActor->GetInput()->GetExtent(); // the global coordiates
         bool vis = ui.actionRubber->isVisible();
 
 
@@ -237,21 +240,22 @@ void NEW3D::on_actionRubber_hovered()
         int x1 = static_cast<int>(e1[1] / space[0]);
 
         double* ptr = (double*)m_pImage->GetScalarPointer();
-        int dimX = m_pImage->GetDimensions()[0];
-        for (size_t j = y0; j <= y1; ++j)
-        {
-            for (size_t i = x0; i <= x1; ++i)
-            {
-                ptr[dimX*j + i] = -15;
-            }
-            
-        }
+
+        int* dim = m_pImage->GetDimensions();
+        
+
+        auto roiPoints = GetImageRoiPointsWorldData();
     }   
 }
 
 void NEW3D::on_actionX_triggered()
 {
     showColorImage(0);
+}
+
+void NEW3D::on_actionY_triggered()
+{
+    showColorImage(1);
 }
 
 
@@ -264,6 +268,33 @@ void NEW3D::showPointCloud(bool updateOrNot)
     updatePointCloud(updateOrNot);
     m_pRenderer->AddActor(m_pPointCloudActor);
 
+    // set color
+    m_pPointCloudActor->GetMapper()->SetLookupTable(m_pLookupTable);
+    m_pLookupTable->SetRange(m_pPoints->GetBounds()[4], m_pPoints->GetBounds()[5]);
+    //pMapper->SetScalarRange(pData->GetPoints()->GetBounds()[4], pData->GetPoints()->GetBounds()[5]);
+    m_pPointCloudActor->GetMapper()->UseLookupTableScalarRangeOn();
+    m_pPointCloudActor->GetMapper()->SetScalarModeToUsePointFieldData();
+    m_pPointCloudActor->GetMapper()->SelectColorArray("Color Field");
+
+    // update m_pRoi3DActor
+    if (m_pRoi2DActor->GetMTime() > m_roiMTimeCache)
+    {
+        m_pRenderer->RemoveActor(m_pRoi3DActor);
+        vtkSmartPointer<vtkPoints> roiPts = GetImageRoiPointsWorldData();
+        if (roiPts != NULL)
+        {
+            auto polyData = toBuildPointCloudData(roiPts);
+            m_pRoi3DActor = toBuildPolyDataActor(polyData);
+            m_pRenderer->AddActor(m_pRoi3DActor);
+            // set roi Actor size & color
+            m_pRoi3DActor->GetProperty()->SetPointSize(3);
+            m_pRoi3DActor->GetProperty()->SetColor(1, 0, 0);
+        }
+        m_roiMTimeCache = m_pRoi2DActor->GetMTime();
+    }
+    
+
+    // rendering
     m_pRenderer->ResetCamera();
     m_pRenderer->SetBackground(0, 0, 0);
     // change window to m_pPointCloudWindow
@@ -289,7 +320,8 @@ void NEW3D::showColorImage(int comp, bool updateOrNot)
         vtkSmartPointer<vtkImageMapToColors>::New();
     colorMap->SetInputConnection(extractCompFilter->GetOutputPort());
     colorMap->SetLookupTable(m_pLookupTable);
-    m_pLookupTable->SetRange(m_pPoints->GetBounds()[4], m_pPoints->GetBounds()[5]);
+    // change range to involve all value
+    m_pLookupTable->SetRange(m_pPoints->GetBounds()[2*comp], m_pPoints->GetBounds()[2*comp+1]);
     colorMap->Update();
 
     vtkSmartPointer<vtkImageChangeInformation> changer =
@@ -299,8 +331,12 @@ void NEW3D::showColorImage(int comp, bool updateOrNot)
     //changer->SetSpacingScale(1/ m_pImage->GetSpacing()[0], 1/m_pImage->GetSpacing()[1], 1);
     changer->Update();
 
-    // clear roi actor
-    m_pImageViewer->GetRenderer()->RemoveActor(m_pROIActor);
+    // update roi actor
+    if (m_pRoi2DActor->GetMTime() > m_roiMTimeCache)
+    {
+        m_pImageViewer->GetRenderer()->RemoveActor(m_pRoi2DActor);
+    }
+
     // !error: 
     //m_pImageViewer->GetImageActor()->SetInputData(changer->GetOutput());
     m_pImageViewer->SetInputConnection(changer->GetOutputPort());
@@ -332,7 +368,7 @@ bool NEW3D::readData(const std::string & fileName)
 
 vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<vtkPoints>& vtkPoints)
 {
-    if(vtkPoints->GetNumberOfPoints() == 0)
+    if(vtkPoints == NULL || vtkPoints->GetNumberOfPoints() == 0)
         return vtkSmartPointer<vtkPolyData>();
     // initialize cells: one point one cell
     vtkSmartPointer<vtkCellArray> vertices = vtkSmartPointer<vtkCellArray>::New();
@@ -372,12 +408,13 @@ vtkSmartPointer<vtkActor> NEW3D::toBuildPolyDataActor(const vtkSmartPointer<vtkP
     vtkSmartPointer<vtkPolyDataMapper> pMapper =
         vtkSmartPointer<vtkPolyDataMapper>::New();
     pMapper->SetInputData(pData);
-    pMapper->SetLookupTable(m_pLookupTable);
-    m_pLookupTable->SetRange(pData->GetPoints()->GetBounds()[4], pData->GetPoints()->GetBounds()[5]);
-    //pMapper->SetScalarRange(pData->GetPoints()->GetBounds()[4], pData->GetPoints()->GetBounds()[5]);
-    pMapper->UseLookupTableScalarRangeOn();
-    pMapper->SetScalarModeToUsePointFieldData();
-    pMapper->SelectColorArray("Color Field");
+
+    //pMapper->SetLookupTable(m_pLookupTable);
+    //m_pLookupTable->SetRange(pData->GetPoints()->GetBounds()[4], pData->GetPoints()->GetBounds()[5]);
+    ////pMapper->SetScalarRange(pData->GetPoints()->GetBounds()[4], pData->GetPoints()->GetBounds()[5]);
+    //pMapper->UseLookupTableScalarRangeOn();
+    //pMapper->SetScalarModeToUsePointFieldData();
+    //pMapper->SelectColorArray("Color Field");
 
     vtkSmartPointer<vtkActor> pActor = vtkSmartPointer<vtkActor>::New();
     pActor->SetMapper(pMapper);
@@ -453,4 +490,72 @@ void NEW3D::updateImage(bool update)
     {
         m_pImage = toBuildImageData();
     }
+}
+
+vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
+{
+    vtkSmartPointer<vtkPoints> result = NULL;
+    if (!ui.actionRubber->isChecked() || 
+        m_pImage == NULL || 
+        m_pRoi2DActor->GetInput()->GetNumberOfPoints() == 0
+        ) 
+    {
+        return result;
+    }
+
+    vtkImageData* roiImg = m_pRoi2DActor->GetInput();    
+    int* extent = roiImg->GetExtent(); // here extent keeps roiImg global coordiates
+
+    double* space = m_pImage->GetSpacing();
+    int minIdx = static_cast<int>(extent[0] / space[0]);
+    int maxIdx = static_cast<int>(extent[1] / space[0]);
+    int minIdy = static_cast<int>(extent[2] / space[1]);
+    int maxIdy = static_cast<int>(extent[3] / space[1]);    
+
+    /* //function of the following lines isn't same to extractVOI
+    int dim[6] = { minIdx, maxIdx, minIdy, maxIdy, 0, 0 };
+    auto pts = static_cast<double*>(m_pImage->GetScalarPointerForExtent(dim));*/
+
+    vtkSmartPointer<vtkExtractVOI> extractVOI =
+        vtkSmartPointer<vtkExtractVOI>::New();
+    extractVOI->SetInputData(m_pImage);
+    extractVOI->SetVOI(minIdx, maxIdx, minIdy, maxIdy, 0, 0);
+    extractVOI->Update();
+
+    vtkImageData* extractImg = extractVOI->GetOutput();
+    int num = extractImg->GetNumberOfPoints();
+    if (num == 0)
+    {
+        return result;
+    }
+    result = vtkSmartPointer<vtkPoints>::New();
+    result->SetNumberOfPoints(num);
+
+    auto pts2 = static_cast<double*>(extractImg->GetScalarPointer());
+    int numComp = extractImg->GetNumberOfScalarComponents();
+    for (size_t i = 0; i < num; ++i)
+    {
+        //double* tmp = extractImg->GetPoint(i);
+        result->SetPoint(i, &pts2[numComp * i]);
+    }
+        
+    /*
+    double* ptr = (double*)m_pImage->GetScalarPointer();
+    double* pts3 = new double[comp*(maxIdy - minIdy + 1)*(maxIdx - minIdx + 1)];
+    int k = 0;
+    for (size_t i = minIdy; i <= maxIdy; ++i)
+    {
+        for (size_t j = minIdx; j <= maxIdx; ++j)
+        {
+            size_t index = m_pImage->GetDimensions()[0] * i + j;
+            double x = ptr[index*m_pImage->GetNumberOfScalarComponents() + 0];
+            double y = ptr[index*m_pImage->GetNumberOfScalarComponents() + 1];
+            double z = ptr[index*m_pImage->GetNumberOfScalarComponents() + 2];
+            pts3[k++] = x;
+            pts3[k++] = y;
+            pts3[k++] = z;
+        }
+    }
+    delete[]pts3;*/
+    return result;
 }
