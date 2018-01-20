@@ -138,6 +138,16 @@ vtkSmartPointer<vtkPolyData> InteractorStylePointCloud::GenerateVoi(const vtkSma
     cells->Reset();
     vtkSmartPointer<vtkIdList> pid = vtkSmartPointer<vtkIdList>::New();
     pid->SetNumberOfIds(4);
+
+    /*
+    (6)+--------+(7)
+      /|       /|
+  (4)+-|------+(5)
+     | |      | |
+    (2)+------|-+(3)
+     |/       |/
+  (0)+--------+(1)
+    */
     pid->SetId(0, 0); pid->SetId(1, 2); pid->SetId(2, 3); pid->SetId(3, 1);
     cells->InsertNextCell(pid);
     pid->SetId(0, 4); pid->SetId(1, 5); pid->SetId(2, 7); pid->SetId(3, 6);

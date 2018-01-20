@@ -64,6 +64,7 @@ private slots:
     void on_actionRubber_hovered();
     void on_actionX_triggered();
     void on_actionY_triggered();
+    void on_actionFit_Plane_toggled();
 
 private:
     void showPointCloud(bool updateOrNot);
@@ -79,6 +80,7 @@ private:
     void updateImage(bool update);
 
     vtkSmartPointer<vtkPoints> GetImageRoiPointsWorldData() const;
+    vtkSmartPointer<vtkActor> generateFitPlaneActor() const;
 
     vtkSmartPointer<vtkLookupTable> m_pLookupTable;
     vtkSmartPointer<vtkImageViewer2> m_pImageViewer;
@@ -94,13 +96,12 @@ private:
     vtkMTimeType m_roiMTimeCache;
     vtkSmartPointer<vtkImageActor> m_pRoi2DActor;
     vtkSmartPointer<vtkActor> m_pRoi3DActor;
-
-
+    vtkSmartPointer<vtkActor> m_pFitPlaneActor;
 
     std::vector<DIM3::Point3d> m_point3dVec;
     vtkSmartPointer<vtkPoints> m_pPoints; // as a vtk object same to m_points3dVec
 
-    //vtkSmartPointer<vtkIdList> m_pRoiPointsIdList;
+
 
 
     bool isPointVecChanged;

@@ -99,11 +99,9 @@ void ImageCallBack::Execute(vtkObject *, unsigned long event, void *)
             int* ex = this->viewer->GetInput()->GetExtent();
             
             renderer->RemoveActor(imageCanvasSource2DActor);
-            //updateCanvasSource2DActor(imageActor->GetDisplayExtent(), x0, x1, y0, y1);
             updateCanvasSource2DActor(x0, x1, y0, y1);
 
             renderer->AddActor(imageCanvasSource2DActor);
-            //blendCanvasSource2D();
         }
         mouseMotion = false;
         style->OnLeftButtonUp();
