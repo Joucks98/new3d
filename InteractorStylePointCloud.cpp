@@ -142,7 +142,7 @@ vtkSmartPointer<vtkPolyData> InteractorStylePointCloud::GenerateVoi(const vtkSma
     /*
     (6)+--------+(7)
       /|       /|
-  (4)+-|------+(5)
+  (4)+--------+(5)
      | |      | |
     (2)+------|-+(3)
      |/       |/

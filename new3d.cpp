@@ -38,9 +38,15 @@
 #include <vtkImageExtractComponents.h>
 #include <vtkExtractVOI.h>
 #include <vtkPlaneSource.h>
-#include <vtkTable.h>
-#include <vtkPCAStatistics.h>
 #include <vtkDataArray.h>
+#include <vtkCallbackCommand.h>
+#include <vtkCubeAxesActor.h>
+#include <vtkTextProperty.h>
+#include <vtkScalarBarActor.h>
+#include <vtkScalarBarWidget.h>
+#include <vtkAxesActor.h>
+#include <vtkOrientationMarkerWidget.h>
+
 
 #include "new3d.h"
 #include "InteractorStylePointCloud.h"
@@ -53,7 +59,12 @@ using namespace DIM3;
 //using DIM3::Point3d;
 
 
-
+// 定义回调函数。注意回调函数的签名，不能更改。
+static void CallbackFunc(vtkObject* obj, unsigned long eid, void* clientdata, void *calldata)
+{
+    
+    std::cout << " ZYH " << std::endl;
+}
 
 
 NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent), 
@@ -88,7 +99,9 @@ NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent),
     m_pPointCloudWindow = vtkSmartPointer<vtkRenderWindow>::New();
     m_pRenderer = vtkSmartPointer<vtkRenderer>::New();
     m_pPointCloudActor = vtkSmartPointer<vtkActor>::New();
+    m_pCubeAxesActor = vtkSmartPointer<vtkCubeAxesActor>::New();
     m_pRenderer->AddActor(m_pPointCloudActor);
+    m_pRenderer->AddActor(m_pCubeAxesActor);
     m_pPointCloudWindow->AddRenderer(m_pRenderer);
     vtkSmartPointer<vtkRenderWindowInteractor> pointCloudInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
     pointCloudInteractor->SetRenderWindow(m_pPointCloudWindow);
@@ -99,6 +112,8 @@ NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent),
 
     
     m_pRoi2DActor = vtkSmartPointer<vtkImageActor>::New();
+
+    m_pScalarBarWidget = vtkSmartPointer<vtkScalarBarWidget>::New();
 
     m_roi2DMTimeCache = m_pRoi2DActor->GetMTime();
     m_roi3DMTimeCache = 0;
@@ -210,10 +225,13 @@ void NEW3D::on_actionRubber_toggled()
         m_pImageStyleRubber->AddObserver(vtkCommand::LeftButtonPressEvent, imageCallback);
         m_pImageStyleRubber->AddObserver(vtkCommand::LeftButtonReleaseEvent, imageCallback);
         m_pImageStyleRubber->AddObserver(vtkCommand::RightButtonPressEvent, imageCallback);
+        // 将回调函数和 vtkCallbackCommand 联系起来
+        vtkSmartPointer<vtkCallbackCommand> mouseCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+        mouseCallback->SetCallback(CallbackFunc);
+        iteractor->AddObserver(vtkCommand::RightButtonPressEvent, mouseCallback);
     }
     else
     {
-        //m_pImageViewer->GetRenderer()->RemoveActor(m_pRoi2DActor);
         m_pRoi2DActor->SetVisibility(0);
         m_pImageViewer->GetRenderWindow()->RemoveAllObservers();
         iteractor->SetInteractorStyle(m_pImageStyle);
@@ -309,8 +327,11 @@ void NEW3D::showPointCloud(bool updateOrNot)
     m_pPointCloudActor->GetMapper()->SetScalarModeToUsePointFieldData();
     m_pPointCloudActor->GetMapper()->SelectColorArray("Color_Field");    
     
-    /*if (m_pFitPlaneActor != NULL)
-        m_pRenderer->AddActor(m_pFitPlaneActor);*/
+    // update cubeAxes
+    updateCubeAxesActor();
+    // update scalerBarWidget
+    
+    initScalarBar(m_pScalarBarWidget);
 
     // rendering
     m_pRenderer->ResetCamera();
@@ -350,10 +371,10 @@ void NEW3D::showColorImage(int comp, bool updateOrNot)
     changer->Update();
 
     // update roi actor
-    if (m_pRoi2DActor->GetMTime() > m_roi2DMTimeCache)
-    {
-        m_pImageViewer->GetRenderer()->RemoveActor(m_pRoi2DActor);
-    }
+    //if (m_pRoi2DActor->GetMTime() > m_roi2DMTimeCache)
+    //{
+    //    m_pImageViewer->GetRenderer()->RemoveActor(m_pRoi2DActor);
+    //}
 
     // !error: 
     //m_pImageViewer->GetImageActor()->SetInputData(changer->GetOutput());
@@ -458,7 +479,7 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildImageData()
         //*(ptr + index*img->GetNumberOfScalarComponents() + 3) = 1;
 
 
-        double* tmp = img->GetPoint(index);
+        // double* tmp = img->GetPoint(index);  // this point has the same (x,y), but not the z .
         
     }
 
@@ -564,6 +585,7 @@ vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
         return result;
     }
     result = vtkSmartPointer<vtkPoints>::New();
+    // You cannot determine the number of points you picked, which have value.
     //result->SetNumberOfPoints(num);
 
     auto pts2 = static_cast<double*>(extractImg->GetScalarPointer());
@@ -603,8 +625,18 @@ vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor() const
     auto ptsData = GetImageRoiPointsWorldData();
     if (ptsData == NULL)
         return vtkSmartPointer<vtkActor>();
+
+    ofstream outfile("../roiData.txt");
+    for (int i = 0; i < ptsData->GetNumberOfPoints(); ++i)
+    {
+        outfile << ptsData->GetPoint(i)[0] << "," <<
+            ptsData->GetPoint(i)[1] << "," <<
+            ptsData->GetPoint(i)[2] << endl;
+    }
+    outfile.close();
+
+
     double normal[3], origin[3];
-    
     planeFitting(filterPoints(ptsData), normal, origin);
     // build plane actor
     vtkSmartPointer<vtkPlaneSource> planeSource = vtkSmartPointer<vtkPlaneSource>::New();
@@ -615,7 +647,6 @@ vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor() const
     // set origin and normal
     planeSource->SetCenter(origin);
     planeSource->SetNormal(normal);
-    //planeSource->SetResolution(100, 100);
     planeSource->Update();
     vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
     mapper->SetInputConnection(planeSource->GetOutputPort());
@@ -626,4 +657,63 @@ vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor() const
     actor->GetProperty()->SetColor(0, 1, 1);
     actor->GetProperty()->SetOpacity(0.6);
     return actor;
+}
+
+void NEW3D::updateCubeAxesActor()
+{
+    double *range = m_pPointCloudActor->GetBounds();//= { -1, 5, -1, 5, 0, 1 };
+    m_pCubeAxesActor->SetBounds(range);
+    m_pCubeAxesActor->SetAxisOrigin(range[0], range[2], range[4]);
+    m_pCubeAxesActor->SetCamera(m_pRenderer->GetActiveCamera());
+    m_pCubeAxesActor->GetTitleTextProperty(0)->SetColor(1.0, 0.0, 0.0);
+    m_pCubeAxesActor->GetLabelTextProperty(0)->SetColor(1.0, 0.0, 0.0);
+    m_pCubeAxesActor->GetTitleTextProperty(1)->SetColor(0.0, 1.0, 0.0);
+    m_pCubeAxesActor->GetLabelTextProperty(1)->SetColor(0.0, 1.0, 0.0);
+    m_pCubeAxesActor->GetTitleTextProperty(2)->SetColor(0.0, 0.0, 1.0);
+    m_pCubeAxesActor->GetLabelTextProperty(2)->SetColor(0.0, 0.0, 1.0);
+
+    //m_pCubeAxesActor->DrawXGridlinesOn();
+    //m_pCubeAxesActor->DrawYGridlinesOn();
+    //m_pCubeAxesActor->DrawZGridlinesOn();
+    m_pCubeAxesActor->DrawXInnerGridlinesOn();
+    m_pCubeAxesActor->DrawYInnerGridlinesOn();
+
+    //m_pCubeAxesActor->SetGridLineLocation(2);
+    m_pCubeAxesActor->XAxisMinorTickVisibilityOn();
+    m_pCubeAxesActor->YAxisMinorTickVisibilityOn();
+    m_pCubeAxesActor->ZAxisMinorTickVisibilityOn();
+
+    //m_pCubeAxesActor->SetFlyModeToFurthestTriad();
+    //m_pCubeAxesActor->SetFlyModeToOuterEdges();
+    m_pCubeAxesActor->SetFlyModeToStaticTriad();
+
+    //m_pCubeAxesActor->StickyAxesOn();
+    //m_pCubeAxesActor->CenterStickyAxesOff();
+    
+}
+
+void NEW3D::initScalarBar(vtkSmartPointer<vtkScalarBarWidget>& scalarBarWidget)
+{
+    // show color bar
+    vtkSmartPointer<vtkScalarBarActor> scalarBarActor = vtkSmartPointer<vtkScalarBarActor>::New();
+    scalarBarActor->SetOrientationToHorizontal();
+    //scalarBarActor->SetOrientationToVertical();
+    scalarBarActor->SetLookupTable(m_pLookupTable);    
+    scalarBarWidget->SetInteractor(m_pPointCloudWindow->GetInteractor());
+    scalarBarWidget->SetScalarBarActor(scalarBarActor);
+    scalarBarWidget->On();
+}
+
+void NEW3D::initOrientationMarker()
+{
+    ///////////////////////////// vtkOrientationMarkerWidget
+    vtkSmartPointer<vtkAxesActor> iconActor = vtkSmartPointer<vtkAxesActor>::New();
+    vtkSmartPointer<vtkOrientationMarkerWidget> orientationWidget =
+        vtkSmartPointer<vtkOrientationMarkerWidget>::New();
+    orientationWidget->SetOutlineColor(0.9300, 0.5700, 0.1300);
+    orientationWidget->SetInteractor(m_pPointCloudWindow->GetInteractor());
+    orientationWidget->SetOrientationMarker(iconActor);
+    orientationWidget->SetViewport(0.0, 0.0, 0.2, 0.2);
+    orientationWidget->SetEnabled(1);
+    orientationWidget->InteractiveOn();
 }

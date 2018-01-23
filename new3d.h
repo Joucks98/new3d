@@ -21,7 +21,7 @@ class vtkPoints;
 class vtkInteractorStyle;
 class vtkInteractorStyleRubberBand2D;
 class vtkImageActor;
-
+class vtkScalarBarWidget;
 
 class string;
 
@@ -83,6 +83,10 @@ private:
     vtkSmartPointer<vtkPoints> GetImageRoiPointsWorldData() const;
     vtkSmartPointer<vtkActor> generateFitPlaneActor() const;
 
+    void updateCubeAxesActor();
+    void initScalarBar(vtkSmartPointer<vtkScalarBarWidget>& scalarBarWidget);
+    void initOrientationMarker();
+
     vtkSmartPointer<vtkLookupTable> m_pLookupTable;
     vtkSmartPointer<vtkImageViewer2> m_pImageViewer;
     vtkSmartPointer<vtkInteractorStyle> m_pImageStyle;
@@ -98,6 +102,8 @@ private:
     vtkSmartPointer<vtkImageActor> m_pRoi2DActor;
     vtkSmartPointer<vtkActor> m_pRoi3DActor;
     vtkSmartPointer<vtkActor> m_pFitPlaneActor;
+
+    vtkSmartPointer<vtkScalarBarWidget> m_pScalarBarWidget;
 
     std::vector<DIM3::Point3d> m_point3dVec;
     vtkSmartPointer<vtkPoints> m_pPoints; // as a vtk object same to m_points3dVec
