@@ -65,6 +65,7 @@ private slots:
     void on_actionX_triggered();
     void on_actionY_triggered();
     void on_actionFit_Plane_toggled();
+    void on_actionPick_Points_toggled();
 
 private:
     void showPointCloud(bool updateOrNot);
@@ -93,7 +94,7 @@ private:
     vtkSmartPointer<vtkPolyData> m_pPointCloudPolyData;
     vtkSmartPointer<vtkActor> m_pPointCloudActor;
     vtkSmartPointer<vtkCubeAxesActor> m_pCubeAxesActor;
-    vtkMTimeType m_roiMTimeCache;
+    vtkMTimeType m_roi2DMTimeCache, m_roi3DMTimeCache;
     vtkSmartPointer<vtkImageActor> m_pRoi2DActor;
     vtkSmartPointer<vtkActor> m_pRoi3DActor;
     vtkSmartPointer<vtkActor> m_pFitPlaneActor;

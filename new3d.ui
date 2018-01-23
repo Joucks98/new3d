@@ -14,16 +14,11 @@
    <string>3D</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QVTKWidget" name="m_qVTKViewer" native="true">
-    <property name="geometry">
-     <rect>
-      <x>0</x>
-      <y>0</y>
-      <width>521</width>
-      <height>411</height>
-     </rect>
-    </property>
-   </widget>
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <widget class="QVTKWidget" name="m_qVTKViewer" native="true"/>
+    </item>
+   </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -62,14 +57,16 @@
     <property name="title">
      <string>Roi</string>
     </property>
-    <widget class="QMenu" name="interactorStyle">
+    <widget class="QMenu" name="menuStyle">
      <property name="title">
-      <string>Roi</string>
+      <string>Style</string>
      </property>
      <addaction name="actionNormal"/>
      <addaction name="actionRubber"/>
     </widget>
-    <addaction name="interactorStyle"/>
+    <addaction name="menuStyle"/>
+    <addaction name="actionFit_Plane"/>
+    <addaction name="actionPick_Points"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menu3D"/>
@@ -129,6 +126,16 @@
   <action name="actionRubber">
    <property name="text">
     <string>Rubber</string>
+   </property>
+  </action>
+  <action name="actionFit_Plane">
+   <property name="text">
+    <string>Fit Plane</string>
+   </property>
+  </action>
+  <action name="actionPick_Points">
+   <property name="text">
+    <string>Pick Points</string>
    </property>
   </action>
  </widget>
