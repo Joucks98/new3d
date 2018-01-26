@@ -79,12 +79,7 @@ NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent),
     ui.actionFit_Plane->setCheckable(true);
     ui.actionPick_Points->setCheckable(true);
 
-    m_pLookupTable = vtkSmartPointer<vtkLookupTable>::New();
-    m_pLookupTable->SetBelowRangeColor(0.0, 0.0, 0.0, 1.0);
-    m_pLookupTable->SetAboveRangeColor(0.0, 0.0, 0.0, 1.0);
-    m_pLookupTable->UseBelowRangeColorOn();
-    m_pLookupTable->UseAboveRangeColorOn();
-    m_pLookupTable->Build();
+    initLookupTable(m_pLookupTable);
 
     m_pImageViewer = vtkSmartPointer<vtkImageViewer2>::New();
     vtkSmartPointer<vtkRenderWindowInteractor> imageInterator = vtkSmartPointer<vtkRenderWindowInteractor>::New();
@@ -260,7 +255,8 @@ void NEW3D::on_actionFit_Plane_toggled()
 {
     if (ui.actionFit_Plane->isChecked())
     {
-        if ((m_pRoi3DActor->GetMTime() > m_roi3DMTimeCache) || (m_pFitPlaneActor == NULL))
+        if ((m_pRoi3DActor->GetMTime() > m_roi3DMTimeCache)
+            || (m_pFitPlaneActor == NULL))
         {
             // update m_pFitPlaneActor
             m_pRenderer->RemoveActor(m_pFitPlaneActor);
@@ -280,12 +276,13 @@ void NEW3D::on_actionFit_Plane_toggled()
 
 void NEW3D::on_actionPick_Points_toggled()
 {
+    m_pRenderer->RemoveActor(m_pRoi3DActor);
     if (ui.actionPick_Points->isChecked())
     {
         if (m_pRoi2DActor->GetMTime() > m_roi2DMTimeCache)
         {
             // update m_pRoi3DActor
-            m_pRenderer->RemoveActor(m_pRoi3DActor);
+            //m_pRenderer->RemoveActor(m_pRoi3DActor);
             vtkSmartPointer<vtkPoints> roiPts = GetImageRoiPointsWorldData();
             if (roiPts != NULL)
             {
@@ -296,15 +293,16 @@ void NEW3D::on_actionPick_Points_toggled()
                 m_pRoi3DActor->GetProperty()->SetColor(1, .3, .3);
                 m_pRoi3DActor->GetProperty()->SetOpacity(.3);
             }
-            m_pRenderer->AddActor(m_pRoi3DActor);
+            //m_pRenderer->AddActor(m_pRoi3DActor);
 
             m_roi2DMTimeCache = m_pRoi2DActor->GetMTime();
         }
         m_pRoi3DActor->SetVisibility(1);
+        m_pRenderer->AddActor(m_pRoi3DActor);
     }
     else
     {
-        m_pRoi3DActor->SetVisibility(0);
+        //m_pRoi3DActor->SetVisibility(0);
     }
     ui.m_qVTKViewer->GetRenderWindow()->Render();
 }
@@ -716,4 +714,21 @@ void NEW3D::initOrientationMarker()
     orientationWidget->SetViewport(0.0, 0.0, 0.2, 0.2);
     orientationWidget->SetEnabled(1);
     orientationWidget->InteractiveOn();
+}
+
+int NEW3D::initLookupTable(vtkSmartPointer<vtkLookupTable>& lut, double backGroundColor[4])
+{
+    lut = vtkSmartPointer<vtkLookupTable>::New();
+    double color[4] = { 0.0, 0.0, 0.0, 1.0 };
+    if (backGroundColor != nullptr)
+    {
+        std::copy(backGroundColor, backGroundColor + 4, color);
+    }    
+    lut->SetBelowRangeColor(color);
+    lut->SetAboveRangeColor(color);
+    lut->SetUseBelowRangeColor(1);
+    lut->SetUseAboveRangeColor(1); 
+    lut->Build();
+
+    return 0;
 }

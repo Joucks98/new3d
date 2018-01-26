@@ -86,6 +86,7 @@ private:
     void updateCubeAxesActor();
     void initScalarBar(vtkSmartPointer<vtkScalarBarWidget>& scalarBarWidget);
     void initOrientationMarker();
+    int initLookupTable(vtkSmartPointer<vtkLookupTable>& lut, double backGroundColor[4] = nullptr);
 
     vtkSmartPointer<vtkLookupTable> m_pLookupTable;
     vtkSmartPointer<vtkImageViewer2> m_pImageViewer;
