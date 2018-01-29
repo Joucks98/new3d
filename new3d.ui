@@ -67,6 +67,7 @@
     <addaction name="menuStyle"/>
     <addaction name="actionFit_Plane"/>
     <addaction name="actionPick_Points"/>
+    <addaction name="actionCorrect"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menu3D"/>
@@ -136,6 +137,11 @@
   <action name="actionPick_Points">
    <property name="text">
     <string>Pick Points</string>
+   </property>
+  </action>
+  <action name="actionCorrect">
+   <property name="text">
+    <string>Correct</string>
    </property>
   </action>
  </widget>

@@ -174,7 +174,7 @@ void NEW3D::on_actionImport_triggered()
 
 void NEW3D::on_actionZ_triggered()
 {
-    showColorImage(2); // ...dig into
+    showColorImage(m_pImage, 2); // ...dig into
     ui.actionZ->setEnabled(false);
     ui.menuStyle->setEnabled(true);
     ui.action3D->setEnabled(true);
@@ -241,13 +241,13 @@ void NEW3D::on_actionRubber_hovered()
 
 void NEW3D::on_actionX_triggered()
 {
-    showColorImage(0);
+    showColorImage(m_pImage, 0);
     ui.menuStyle->setEnabled(true);
 }
 
 void NEW3D::on_actionY_triggered()
 {
-    showColorImage(1);
+    showColorImage(m_pImage, 1);
     ui.menuStyle->setEnabled(true);
 }
 
@@ -260,12 +260,25 @@ void NEW3D::on_actionFit_Plane_toggled()
         {
             // update m_pFitPlaneActor
             m_pRenderer->RemoveActor(m_pFitPlaneActor);
-            m_pFitPlaneActor = generateFitPlaneActor();
+            auto roiData = GetImageRoiPointsWorldData();
+            if (roiData != NULL)
+            {
+                double normal[3], origin[3];
+                planeFitting(filterPoints(roiData), normal, origin);
+                double *bound = roiData->GetBounds();
+                m_pFitPlaneActor = generateFitPlaneActor(normal, origin, bound[1] - bound[0], bound[3] - bound[2]);
+                // this all 0
+                /*auto oo = m_pFitPlaneActor->GetOrigin();
+                auto pp = m_pFitPlaneActor->GetPosition();*/
+            }
             m_pRenderer->AddActor(m_pFitPlaneActor);
 
             m_roi3DMTimeCache = m_pRoi3DActor->GetMTime();
         }
-        m_pFitPlaneActor->SetVisibility(1);
+        if (m_pFitPlaneActor != NULL)
+        {
+            m_pFitPlaneActor->SetVisibility(1);
+        }        
     }
     else
     {
@@ -286,9 +299,20 @@ void NEW3D::on_actionPick_Points_toggled()
             vtkSmartPointer<vtkPoints> roiPts = GetImageRoiPointsWorldData();
             if (roiPts != NULL)
             {
+                // save roiData
+                ofstream outfile("../roiData.txt", ios::trunc);
+                for (int i = 0; i < roiPts->GetNumberOfPoints(); ++i)
+                {
+                    outfile << roiPts->GetPoint(i)[0] << "," <<
+                        roiPts->GetPoint(i)[1] << "," <<
+                        roiPts->GetPoint(i)[2] << endl;
+                }
+                outfile.close();
+
+                // build m_pRoi3DActor
                 auto polyData = toBuildPointCloudData(roiPts);
                 m_pRoi3DActor = toBuildPolyDataActor(polyData);                
-                // set roi Actor size & color
+                // set m_pRoi3DActor size & color
                 m_pRoi3DActor->GetProperty()->SetPointSize(3);
                 m_pRoi3DActor->GetProperty()->SetColor(1, .3, .3);
                 m_pRoi3DActor->GetProperty()->SetOpacity(.3);
@@ -302,9 +326,55 @@ void NEW3D::on_actionPick_Points_toggled()
     }
     else
     {
-        //m_pRoi3DActor->SetVisibility(0);
+        //m_pRoi3DActor->SetVisibility(0); // will modify m_pRoi3DActor
     }
     ui.m_qVTKViewer->GetRenderWindow()->Render();
+}
+
+void NEW3D::on_actionCorrect_triggered()
+{
+    auto roiData = GetImageRoiPointsWorldData();
+    //vtkSmartPointer<vtkDoubleArray> colorScalarArray = vtkSmartPointer<vtkDoubleArray>::New();
+    if (roiData != NULL)
+    {
+        double normal[3], origin[3];
+        planeFitting(filterPoints(roiData), normal, origin);
+        vtkMath::Normalize(normal);
+
+        double* ptr = (double*)m_pImage->GetScalarPointer(); // change m_pImage
+        
+        int numComp = m_pImage->GetNumberOfScalarComponents();
+        vector<double> tmp(numComp);        
+        //colorScalarArray->SetNumberOfTuples(m_pImage->GetNumberOfPoints());
+        auto heightField = m_pImage->GetPointData()->GetScalars("Height_Field");
+        for (vtkIdType i = 0; i < m_pImage->GetNumberOfPoints(); ++i)
+        {
+            //colorScalarArray->SetValue(i, VTK_DOUBLE_MIN);
+            if (/*ptr[numComp*i + 2] > VTK_DOUBLE_MIN*/
+                heightField->GetTuple1(i) > VTK_DOUBLE_MIN)
+            {
+                for (size_t j = 0; j < numComp; ++j)
+                {
+                    tmp[j] = ptr[numComp*i + j] - origin[j];
+                }
+                ptr[numComp*i + 2] = vtkMath::Dot(normal, &tmp[0]);
+                heightField->SetTuple1(i, vtkMath::Dot(normal, &tmp[0]));
+            }
+        }
+
+        ofstream outfile("../height.txt",ios::trunc);
+        for (int i = 0; i < heightField->GetNumberOfTuples(); ++i)
+        {
+            outfile << heightField->GetTuple1(i)<< endl;
+        }
+        outfile.close();
+    }
+    //m_pImage->GetPointData()->SetActiveScalars("Height_Field");
+
+    // the following line return all three components of points in m_pImage
+    // auto vv = m_pImage->GetPointData()->GetScalars();
+    showColorImage(m_pImage, 2);
+    //ui.m_qVTKViewer->GetRenderWindow()->Render();
 }
 
 
@@ -319,7 +389,8 @@ void NEW3D::showPointCloud(bool updateOrNot)
 
     // set color
     m_pPointCloudActor->GetMapper()->SetLookupTable(m_pLookupTable);
-    m_pLookupTable->SetRange(m_pPoints->GetBounds()[4], m_pPoints->GetBounds()[5]);
+    //m_pLookupTable->SetRange(m_pPoints->GetBounds()[4], m_pPoints->GetBounds()[5]);
+
     //pMapper->SetScalarRange(pData->GetPoints()->GetBounds()[4], pData->GetPoints()->GetBounds()[5]);
     m_pPointCloudActor->GetMapper()->UseLookupTableScalarRangeOn();
     m_pPointCloudActor->GetMapper()->SetScalarModeToUsePointFieldData();
@@ -341,15 +412,15 @@ void NEW3D::showPointCloud(bool updateOrNot)
     ui.m_qVTKViewer->GetRenderWindow()->Render();
 }
 
-void NEW3D::showColorImage(int comp, bool updateOrNot)
+void NEW3D::showColorImage(const vtkSmartPointer<vtkImageData>& pImg, int comp, bool updateOrNot)
 {
     updateImage(updateOrNot);
-    if (m_pImage == NULL)
+    if (pImg == NULL)
         return;
 
     vtkSmartPointer<vtkImageExtractComponents> extractCompFilter =
         vtkSmartPointer<vtkImageExtractComponents>::New();
-    extractCompFilter->SetInputData(m_pImage);
+    extractCompFilter->SetInputData(pImg);
     extractCompFilter->SetComponents(comp);
     extractCompFilter->Update();
 
@@ -358,25 +429,50 @@ void NEW3D::showColorImage(int comp, bool updateOrNot)
     colorMap->SetInputConnection(extractCompFilter->GetOutputPort());
     colorMap->SetLookupTable(m_pLookupTable);
     // change range to involve all value
-    m_pLookupTable->SetRange(m_pPoints->GetBounds()[2*comp], m_pPoints->GetBounds()[2*comp+1]);
+
+    vtkDataArray* tmp = extractCompFilter->GetOutput()->GetPointData()->GetScalars(); // return active scalar data
+    // this only work on z component
+    // vtkDataArray* tmp = img->GetPointData()->GetScalars("Height_Field");
+    bool correctOrNot = false;
+    if (correctOrNot)
+    {
+        tmp = pImg->GetPointData()->GetScalars("Height_Field");
+    }
+
+    double minHeight = VTK_DOUBLE_MAX, maxHeight = VTK_DOUBLE_MIN;
+    for (vtkIdType i = 0; i < tmp->GetNumberOfTuples(); ++i)
+    {
+        if (tmp->GetTuple1(i) > maxHeight)
+        {
+            maxHeight = tmp->GetTuple1(i);
+        }
+        if (tmp->GetTuple1(i) > VTK_DOUBLE_MIN && tmp->GetTuple1(i) < minHeight)
+        {
+            minHeight = tmp->GetTuple1(i);
+        }
+    }
+    
+    //m_pLookupTable->SetRange(minHeight, maxHeight);
+
+    // decoupling from m_pPoints
+    // m_pLookupTable->SetRange(m_pPoints->GetBounds()[comp * 2], m_pPoints->GetBounds()[comp * 2 + 1]);
+    /* !error:
+    double* bounds = extractCompFilter->GetOutput()->GetBounds();
+    m_pLookupTable->SetRange(bounds[2], bounds[3]);*/
+
     colorMap->Update();
 
     vtkSmartPointer<vtkImageChangeInformation> changer =
         vtkSmartPointer<vtkImageChangeInformation>::New();
     changer->SetInputConnection(colorMap->GetOutputPort());
     changer->SetOutputOrigin(0, 0, 0);
-    //changer->SetSpacingScale(1/ m_pImage->GetSpacing()[0], 1/m_pImage->GetSpacing()[1], 1);
+    //changer->SetSpacingScale(1/ pImg->GetSpacing()[0], 1/pImg->GetSpacing()[1], 1);
     changer->Update();
-
-    // update roi actor
-    //if (m_pRoi2DActor->GetMTime() > m_roi2DMTimeCache)
-    //{
-    //    m_pImageViewer->GetRenderer()->RemoveActor(m_pRoi2DActor);
-    //}
 
     // !error: 
     //m_pImageViewer->GetImageActor()->SetInputData(changer->GetOutput());
     m_pImageViewer->SetInputConnection(changer->GetOutputPort());
+
     // change window to imageviewer
     // !error: m_pImageViewer->SetRenderWindow(ui.m_qVTKViewer->GetRenderWindow());
     ui.m_qVTKViewer->SetRenderWindow(m_pImageViewer->GetRenderWindow());
@@ -465,6 +561,18 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildImageData()
 
     // init imagedata parameter
     auto img = initImageData(VTK_DOUBLE_MIN);
+
+
+    vtkSmartPointer<vtkDoubleArray> heightField = vtkSmartPointer<vtkDoubleArray>::New();
+    heightField->SetName("Height_Field");
+    heightField->SetNumberOfComponents(1);
+    heightField->SetNumberOfTuples(img->GetNumberOfPoints());
+    for (vtkIdType i = 0; i < img->GetNumberOfPoints(); ++i)
+    {
+        heightField->SetValue(i, VTK_DOUBLE_MIN);
+    }
+
+
     double* ptr = (double*)img->GetScalarPointer();
     for (size_t i = 0; i < m_point3dVec.size(); ++i)
     {
@@ -476,21 +584,13 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildImageData()
         *(ptr + index*img->GetNumberOfScalarComponents() + 2) = m_point3dVec[i].z;
         //*(ptr + index*img->GetNumberOfScalarComponents() + 3) = 1;
 
-
+        heightField->SetValue(index, m_point3dVec[i].z);
         // double* tmp = img->GetPoint(index);  // this point has the same (x,y), but not the z .
         
     }
 
-    /*vtkSmartPointer<vtkIntArray> indicateField = vtkSmartPointer<vtkIntArray>::New();
-    indicateField->SetName("Indicate_Field");
-    indicateField->SetNumberOfComponents(1);
-    indicateField->SetNumberOfTuples(img->GetNumberOfPoints());
     
-    for (vtkIdType i = 0; i < img->GetNumberOfPoints(); ++i)
-    {
-        indicateField->SetValue(i, vtkPoints->GetPoint(i)[2]);
-    }
-    polyData->GetPointData()->AddArray(indicateField);*/
+    img->GetPointData()->AddArray(heightField);
 
 
     return img;
@@ -549,7 +649,7 @@ void NEW3D::updateImage(bool update)
 vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
 {
     vtkSmartPointer<vtkPoints> result = NULL;
-    if (!ui.actionRubber->isChecked() || 
+    if (/*!ui.actionRubber->isChecked() ||*/ 
         m_pImage == NULL || 
         m_pRoi2DActor->GetInput()->GetNumberOfPoints() == 0
         ) 
@@ -618,33 +718,30 @@ vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
 }
 
 
-vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor() const
+vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor(double * n, double * o, double width, double height) const
 {
-    auto ptsData = GetImageRoiPointsWorldData();
-    if (ptsData == NULL)
-        return vtkSmartPointer<vtkActor>();
+    //auto ptsData = GetImageRoiPointsWorldData();
+    //if (ptsData == NULL)
+    //    return vtkSmartPointer<vtkActor>();
 
-    ofstream outfile("../roiData.txt");
-    for (int i = 0; i < ptsData->GetNumberOfPoints(); ++i)
+    //double normal[3], origin[3];
+    //planeFitting(filterPoints(ptsData), normal, origin);
+
+    if (n == nullptr || o == nullptr 
+        || width < 0 || height < 0 )
     {
-        outfile << ptsData->GetPoint(i)[0] << "," <<
-            ptsData->GetPoint(i)[1] << "," <<
-            ptsData->GetPoint(i)[2] << endl;
+        return vtkSmartPointer<vtkActor>();
     }
-    outfile.close();
 
-
-    double normal[3], origin[3];
-    planeFitting(filterPoints(ptsData), normal, origin);
     // build plane actor
     vtkSmartPointer<vtkPlaneSource> planeSource = vtkSmartPointer<vtkPlaneSource>::New();
     // set plane size
     planeSource->SetOrigin(0, 0, 0);
-    planeSource->SetPoint1(0, ptsData->GetBounds()[3]- ptsData->GetBounds()[2], 0);
-    planeSource->SetPoint2(ptsData->GetBounds()[1] - ptsData->GetBounds()[0], 0, 0);
+    planeSource->SetPoint1(0, height, 0);
+    planeSource->SetPoint2(width, 0, 0);
     // set origin and normal
-    planeSource->SetCenter(origin);
-    planeSource->SetNormal(normal);
+    planeSource->SetCenter(o);
+    planeSource->SetNormal(n);
     planeSource->Update();
     vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
     mapper->SetInputConnection(planeSource->GetOutputPort());
@@ -728,6 +825,7 @@ int NEW3D::initLookupTable(vtkSmartPointer<vtkLookupTable>& lut, double backGrou
     lut->SetAboveRangeColor(color);
     lut->SetUseBelowRangeColor(1);
     lut->SetUseAboveRangeColor(1); 
+    lut->SetRange(-10, 5);
     lut->Build();
 
     return 0;

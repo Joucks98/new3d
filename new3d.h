@@ -66,10 +66,11 @@ private slots:
     void on_actionY_triggered();
     void on_actionFit_Plane_toggled();
     void on_actionPick_Points_toggled();
+    void on_actionCorrect_triggered();
 
 private:
     void showPointCloud(bool updateOrNot);
-    void showColorImage(int comp, bool updateOrNot = false);
+    void showColorImage(const vtkSmartPointer<vtkImageData>& img, int comp, bool updateOrNot = false);
     bool readData(const std::string& fileName);
 
 
@@ -81,7 +82,7 @@ private:
     void updateImage(bool update);
 
     vtkSmartPointer<vtkPoints> GetImageRoiPointsWorldData() const;
-    vtkSmartPointer<vtkActor> generateFitPlaneActor() const;
+    vtkSmartPointer<vtkActor> generateFitPlaneActor(double* n, double* o, double width, double height) const;
 
     void updateCubeAxesActor();
     void initScalarBar(vtkSmartPointer<vtkScalarBarWidget>& scalarBarWidget);
