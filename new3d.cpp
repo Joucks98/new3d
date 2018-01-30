@@ -313,6 +313,10 @@ void NEW3D::on_actionPick_Points_toggled()
                 auto polyData = toBuildPointCloudData(roiPts);
                 m_pRoi3DActor = toBuildPolyDataActor(polyData);                
                 // set m_pRoi3DActor size & color
+                if (m_pRoi3DActor == nullptr)
+                {
+                    return;
+                }
                 m_pRoi3DActor->GetProperty()->SetPointSize(3);
                 m_pRoi3DActor->GetProperty()->SetColor(1, .3, .3);
                 m_pRoi3DActor->GetProperty()->SetOpacity(.3);
@@ -338,36 +342,35 @@ void NEW3D::on_actionCorrect_triggered()
     if (roiData != NULL)
     {
         double normal[3], origin[3];
-        planeFitting(filterPoints(roiData), normal, origin);
+        if (planeFitting(filterPoints(roiData), normal, origin))
+        {
+            std::cerr << "fitting error!" << endl;
+            return;
+        }
         vtkMath::Normalize(normal);
 
         double* ptr = (double*)m_pImage->GetScalarPointer(); // change m_pImage
         
         int numComp = m_pImage->GetNumberOfScalarComponents();
         vector<double> tmp(numComp);        
-        //colorScalarArray->SetNumberOfTuples(m_pImage->GetNumberOfPoints());
-        auto heightField = m_pImage->GetPointData()->GetScalars("Height_Field");
-        for (vtkIdType i = 0; i < m_pImage->GetNumberOfPoints(); ++i)
+        for (size_t i = 0; i < m_point3dVec.size(); ++i)
         {
-            //colorScalarArray->SetValue(i, VTK_DOUBLE_MIN);
-            if (/*ptr[numComp*i + 2] > VTK_DOUBLE_MIN*/
-                heightField->GetTuple1(i) > VTK_DOUBLE_MIN)
+            size_t scalarId = numComp * m_point3dVec[i].index;
+            for (size_t j = 0; j < numComp; ++j)
             {
-                for (size_t j = 0; j < numComp; ++j)
-                {
-                    tmp[j] = ptr[numComp*i + j] - origin[j];
-                }
-                ptr[numComp*i + 2] = vtkMath::Dot(normal, &tmp[0]);
-                heightField->SetTuple1(i, vtkMath::Dot(normal, &tmp[0]));
+                tmp[j] = ptr[scalarId + j] - origin[j];
             }
+            double height = vtkMath::Dot(normal, &tmp[0]);
+            ptr[scalarId + 2] = height;
+            m_point3dVec[i].h = height;
         }
 
-        ofstream outfile("../height.txt",ios::trunc);
-        for (int i = 0; i < heightField->GetNumberOfTuples(); ++i)
+        /*ofstream outfile("../height.txt",ios::trunc);
+        for (int i = 0; i < m_point3dVec.size(); ++i)
         {
-            outfile << heightField->GetTuple1(i)<< endl;
+            outfile << m_point3dVec[i].h<< endl;
         }
-        outfile.close();
+        outfile.close();*/
     }
     //m_pImage->GetPointData()->SetActiveScalars("Height_Field");
 
@@ -375,6 +378,19 @@ void NEW3D::on_actionCorrect_triggered()
     // auto vv = m_pImage->GetPointData()->GetScalars();
     showColorImage(m_pImage, 2);
     //ui.m_qVTKViewer->GetRenderWindow()->Render();
+
+    
+
+    vtkSmartPointer<vtkDoubleArray> colorField = vtkSmartPointer<vtkDoubleArray>::New();
+    colorField->SetNumberOfTuples((vtkIdType)m_point3dVec.size());
+    colorField->SetNumberOfComponents(1);
+    for (size_t i = 0; i < m_point3dVec.size(); ++i)
+    {
+        colorField->SetValue(i, m_point3dVec[i].h);
+    }
+    modifyPolyDataColorField(colorField);
+    //m_pPointCloudStyle->SetInteractData(m_pPointCloudPolyData);
+    //m_pPointCloudActor = toBuildPolyDataActor(m_pPointCloudPolyData);
 }
 
 
@@ -391,6 +407,9 @@ void NEW3D::showPointCloud(bool updateOrNot)
     m_pPointCloudActor->GetMapper()->SetLookupTable(m_pLookupTable);
     //m_pLookupTable->SetRange(m_pPoints->GetBounds()[4], m_pPoints->GetBounds()[5]);
 
+
+
+    //m_pPointCloudActor->GetMapper()->GetInput()->
     //pMapper->SetScalarRange(pData->GetPoints()->GetBounds()[4], pData->GetPoints()->GetBounds()[5]);
     m_pPointCloudActor->GetMapper()->UseLookupTableScalarRangeOn();
     m_pPointCloudActor->GetMapper()->SetScalarModeToUsePointFieldData();
@@ -412,9 +431,9 @@ void NEW3D::showPointCloud(bool updateOrNot)
     ui.m_qVTKViewer->GetRenderWindow()->Render();
 }
 
-void NEW3D::showColorImage(const vtkSmartPointer<vtkImageData>& pImg, int comp, bool updateOrNot)
+void NEW3D::showColorImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
 {
-    updateImage(updateOrNot);
+    //updateImage(updateOrNot);
     if (pImg == NULL)
         return;
 
@@ -499,9 +518,11 @@ bool NEW3D::readData(const std::string & fileName)
     return true;
 }
 
-vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<vtkPoints>& vtkPoints)
+vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<vtkPoints>& vtkPoints, 
+                                                          const vtkSmartPointer<vtkDoubleArray>& colorField) const
 {
-    if(vtkPoints == NULL || vtkPoints->GetNumberOfPoints() == 0)
+    if(vtkPoints == NULL ||
+       vtkPoints->GetNumberOfPoints() == 0)
         return vtkSmartPointer<vtkPolyData>();
     // initialize cells: one point one cell
     vtkSmartPointer<vtkCellArray> vertices = vtkSmartPointer<vtkCellArray>::New();
@@ -518,19 +539,44 @@ vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<
     vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New();
     polyData->SetPoints(vtkPoints);
     polyData->SetVerts(vertices);
-
+    
     // set coler field
-    vtkSmartPointer<vtkDoubleArray> colerField = vtkSmartPointer<vtkDoubleArray>::New();
-    colerField->SetName("Color_Field");
-    colerField->SetNumberOfComponents(1);
-    colerField->SetNumberOfTuples(num);
-    for (vtkIdType i = 0; i < num; ++i)
+    if (colorField != nullptr && colorField->GetNumberOfTuples() == num)
     {
-        colerField->SetValue(i, vtkPoints->GetPoint(i)[2]);
+        colorField->SetName("Color_Field");
+        polyData->GetPointData()->AddArray(colorField);
     }
-    polyData->GetPointData()->AddArray(colerField);
+    else
+    {
+        vtkSmartPointer<vtkDoubleArray> tmp = vtkSmartPointer<vtkDoubleArray>::New();
+        tmp->SetName("Color_Field");
+        tmp->SetNumberOfComponents(1);
+        tmp->SetNumberOfTuples(num);
+        for (vtkIdType i = 0; i < num; ++i)
+        {
+            tmp->SetValue(i, vtkPoints->GetPoint(i)[2]);
+        }
+        polyData->GetPointData()->AddArray(tmp);
+    }   
 
     return polyData;
+}
+
+vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const std::vector<DIM3::Point3d>& point3dVec) const
+{
+    if (point3dVec.empty())
+    {
+        return nullptr;
+    }
+    vtkSmartPointer<vtkPoints> vtkPoints = vec2vtkPoints(point3dVec);
+    vtkSmartPointer<vtkDoubleArray> colorField = vtkSmartPointer<vtkDoubleArray>::New();
+    colorField->SetNumberOfTuples((vtkIdType)point3dVec.size());
+    colorField->SetNumberOfComponents(1);
+    for (size_t i = 0; i < point3dVec.size(); ++i)
+    {
+        colorField->SetValue(i, point3dVec[i].h);
+    }
+    return toBuildPointCloudData(vtkPoints, colorField);
 }
 
 vtkSmartPointer<vtkActor> NEW3D::toBuildPolyDataActor(const vtkSmartPointer<vtkPolyData>& pData)
@@ -554,9 +600,9 @@ vtkSmartPointer<vtkActor> NEW3D::toBuildPolyDataActor(const vtkSmartPointer<vtkP
     return pActor;
 }
 
-vtkSmartPointer<vtkImageData> NEW3D::toBuildImageData()
+vtkSmartPointer<vtkImageData> NEW3D::toBuildImageData(vector<Point3d>& point3dVec)
 {
-    if(m_point3dVec.empty())
+    if(point3dVec.empty())
         return vtkSmartPointer<vtkImageData>();
 
     // init imagedata parameter
@@ -574,19 +620,21 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildImageData()
 
 
     double* ptr = (double*)img->GetScalarPointer();
-    for (size_t i = 0; i < m_point3dVec.size(); ++i)
+    int numComp = img->GetNumberOfScalarComponents();
+    for (size_t i = 0; i < point3dVec.size(); ++i)
     {
-        size_t yId = round((m_point3dVec[i].y - img->GetOrigin()[1]) / img->GetSpacing()[1]);
-        size_t xId = round((m_point3dVec[i].x - img->GetOrigin()[0]) / img->GetSpacing()[0]);
+        size_t yId = round((point3dVec[i].y - img->GetOrigin()[1]) / img->GetSpacing()[1]);
+        size_t xId = round((point3dVec[i].x - img->GetOrigin()[0]) / img->GetSpacing()[0]);
         size_t index = img->GetDimensions()[0] * yId + xId;
-        *(ptr + index*img->GetNumberOfScalarComponents() + 0) = m_point3dVec[i].x;
-        *(ptr + index*img->GetNumberOfScalarComponents() + 1) = m_point3dVec[i].y;
-        *(ptr + index*img->GetNumberOfScalarComponents() + 2) = m_point3dVec[i].z;
+        *(ptr + index*numComp + 0) = point3dVec[i].x;
+        *(ptr + index*numComp + 1) = point3dVec[i].y;
+        *(ptr + index*numComp + 2) = point3dVec[i].z;
         //*(ptr + index*img->GetNumberOfScalarComponents() + 3) = 1;
 
-        heightField->SetValue(index, m_point3dVec[i].z);
+        heightField->SetValue(index, point3dVec[i].h);
         // double* tmp = img->GetPoint(index);  // this point has the same (x,y), but not the z .
         
+        point3dVec[i].index = index;
     }
 
     
@@ -642,7 +690,7 @@ void NEW3D::updateImage(bool update)
 {
     if (update)
     {
-        m_pImage = toBuildImageData();
+        m_pImage = toBuildImageData(m_point3dVec);
     }
 }
 
@@ -825,8 +873,26 @@ int NEW3D::initLookupTable(vtkSmartPointer<vtkLookupTable>& lut, double backGrou
     lut->SetAboveRangeColor(color);
     lut->SetUseBelowRangeColor(1);
     lut->SetUseAboveRangeColor(1); 
-    lut->SetRange(-10, 5);
+    lut->SetRange(-5, 3);
     lut->Build();
 
     return 0;
+}
+
+void NEW3D::modifyPolyDataColorField(const vtkSmartPointer<vtkDoubleArray>& colorField)
+{
+    if (colorField == nullptr || 
+        m_pPointCloudPolyData->GetNumberOfPoints() != colorField->GetNumberOfTuples())
+    {
+        return;
+    }    
+    auto colors = m_pPointCloudPolyData->GetPointData()->GetScalars("Color_Field");
+    if (colors != nullptr)
+    {
+        colors->Resize(colorField->GetNumberOfTuples());
+        for (vtkIdType i = 0; i < colors->GetNumberOfTuples(); ++i)
+        {
+            colors->SetTuple1(i, colorField->GetTuple1(i));
+        }
+    }    
 }

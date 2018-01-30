@@ -55,13 +55,18 @@ namespace DIM3 {
     }
     vtkSmartPointer<vtkPoints> filterPoints(vtkPoints* pts, int numberOfClusters = 2)
     {
+        if (pts == nullptr || pts->GetNumberOfPoints() == 0)
+        {
+            return nullptr;
+        }
         std::vector<double> zVec;
         vtkPoints2Vec(pts, &zVec, 2);
         // get rid of outliers
         double sigma = calcStandardVariance(zVec);
 
         std::sort(zVec.begin(), zVec.end());
-        double midZValue = zVec[(size_t)(zVec.size()*.5)]; // middle value
+
+        double midZValue = zVec.size() > 0 ? zVec[(size_t)(zVec.size()*.5)]: 0.0; // middle value
 
         vtkSmartPointer<vtkIdList> pickedIdList0 = vtkSmartPointer<vtkIdList>::New();
         vtkSmartPointer<vtkIdList> pickedIdList1 = vtkSmartPointer<vtkIdList>::New();

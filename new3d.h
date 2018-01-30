@@ -22,6 +22,7 @@ class vtkInteractorStyle;
 class vtkInteractorStyleRubberBand2D;
 class vtkImageActor;
 class vtkScalarBarWidget;
+class vtkDoubleArray;
 
 class string;
 
@@ -34,13 +35,14 @@ namespace DIM3
     class Point3d
     {
     public:
+        
+        Point3d(double a, double b, double c):x(a), y(b), z(c), h(c), index(-1) {}
+        //Point3d(const Point3d& t): x(t.x), y(t.y), z(t.z) {}
         double x;
         double y;
         double z;
-        Point3d(double a, double b, double c):x(a), y(b), z(c), index(-1) {}
-        //Point3d(const Point3d& t): x(t.x), y(t.y), z(t.z) {}
-
-        int index;
+        double h;
+        size_t index;  // index in image
     };
 }
 
@@ -70,13 +72,15 @@ private slots:
 
 private:
     void showPointCloud(bool updateOrNot);
-    void showColorImage(const vtkSmartPointer<vtkImageData>& img, int comp, bool updateOrNot = false);
+    void showColorImage(const vtkSmartPointer<vtkImageData>& img, int comp);
     bool readData(const std::string& fileName);
 
 
-    vtkSmartPointer<vtkPolyData> toBuildPointCloudData(const vtkSmartPointer<vtkPoints>& vtkPoints);
+    vtkSmartPointer<vtkPolyData> toBuildPointCloudData(const vtkSmartPointer<vtkPoints>& vtkPoints, 
+                                                       const vtkSmartPointer<vtkDoubleArray>& colorField = NULL) const;
+    vtkSmartPointer<vtkPolyData> toBuildPointCloudData(const std::vector<DIM3::Point3d>& point3dVec) const;
     vtkSmartPointer<vtkActor> toBuildPolyDataActor(const vtkSmartPointer<vtkPolyData>& pData);
-    vtkSmartPointer<vtkImageData> toBuildImageData();
+    vtkSmartPointer<vtkImageData> toBuildImageData(std::vector<DIM3::Point3d>& point3dVec);
     vtkSmartPointer<vtkImageData> initImageData(double initZ = 0);
     void updatePointCloud(bool update);
     void updateImage(bool update);
@@ -88,6 +92,8 @@ private:
     void initScalarBar(vtkSmartPointer<vtkScalarBarWidget>& scalarBarWidget);
     void initOrientationMarker();
     int initLookupTable(vtkSmartPointer<vtkLookupTable>& lut, double backGroundColor[4] = nullptr);
+
+    void modifyPolyDataColorField(const vtkSmartPointer<vtkDoubleArray>& colorField);
 
     vtkSmartPointer<vtkLookupTable> m_pLookupTable;
     vtkSmartPointer<vtkImageViewer2> m_pImageViewer;
