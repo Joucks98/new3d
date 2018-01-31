@@ -1,5 +1,5 @@
-#ifndef __ALGORITHM3D_H_
-#define __ALGORITHM3D_H_
+#ifndef __ALGORITHM3D_H__
+#define __ALGORITHM3D_H__
 #include <vtkPoints.h>
 #include <vtkPCAStatistics.h>
 #include <vtkTable.h>
@@ -14,6 +14,18 @@
 
 
 namespace DIM3 {
+    vtkSmartPointer<vtkDoubleArray> vec2vtkDoubleArray(const std::vector<double> vec)
+    {
+        vtkSmartPointer<vtkDoubleArray> result = vtkSmartPointer<vtkDoubleArray>::New();
+        result->SetNumberOfTuples((vtkIdType)vec.size());
+        result->SetNumberOfComponents(1);
+        for (size_t i = 0; i < vec.size(); ++i)
+        {
+            result->SetValue(i, vec[i]);
+        }
+        return result;
+    }
+
     vtkSmartPointer<vtkPoints> vec2vtkPoints(const std::vector<Point3d>& ptVec)
     {
         vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
@@ -347,5 +359,5 @@ namespace DIM3 {
 
 
 
-#endif // !__ALGORITHM3D_H_
+#endif // !__ALGORITHM3D_H__
 

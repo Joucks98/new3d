@@ -380,17 +380,10 @@ void NEW3D::on_actionCorrect_triggered()
     //ui.m_qVTKViewer->GetRenderWindow()->Render();
 
     
-
-    vtkSmartPointer<vtkDoubleArray> colorField = vtkSmartPointer<vtkDoubleArray>::New();
-    colorField->SetNumberOfTuples((vtkIdType)m_point3dVec.size());
-    colorField->SetNumberOfComponents(1);
-    for (size_t i = 0; i < m_point3dVec.size(); ++i)
-    {
-        colorField->SetValue(i, m_point3dVec[i].h);
-    }
+    vector<double> tmp(m_point3dVec.size());
+    std::transform(m_point3dVec.begin(), m_point3dVec.end(), tmp.begin(), [](const auto& a) {return a.h; });
+    vtkSmartPointer<vtkDoubleArray> colorField = vec2vtkDoubleArray(tmp);    
     modifyPolyDataColorField(colorField);
-    //m_pPointCloudStyle->SetInteractData(m_pPointCloudPolyData);
-    //m_pPointCloudActor = toBuildPolyDataActor(m_pPointCloudPolyData);
 }
 
 
