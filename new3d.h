@@ -114,9 +114,8 @@ private:
     vtkSmartPointer<vtkScalarBarWidget> m_pScalarBarWidget;
 
     std::vector<DIM3::Point3d> m_point3dVec;
-    vtkSmartPointer<vtkPoints> m_pPoints; // as a vtk object same to m_points3dVec
 
-
+    std::map<size_t, DIM3::Point3d> m_Index_Point3_Map;
 
 
     bool isPointVecChanged;

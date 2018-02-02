@@ -71,7 +71,6 @@ NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent),
                                 m_pPointCloudPolyData(NULL), 
                                 m_pRoi3DActor(NULL), 
                                 m_pFitPlaneActor(NULL),
-                                m_pPoints(NULL), 
                                 isPointVecChanged(false)
 {
     ui.setupUi(this);
@@ -163,7 +162,6 @@ void NEW3D::on_actionImport_triggered()
     bool flag = readData(fileName.toStdString());
     if (flag)
     {
-        m_pPoints = vec2vtkPoints(m_point3dVec);
         updatePointCloud(1);
         updateImage(1);
     }
@@ -382,8 +380,7 @@ void NEW3D::on_actionCorrect_triggered()
     
     vector<double> tmp(m_point3dVec.size());
     std::transform(m_point3dVec.begin(), m_point3dVec.end(), tmp.begin(), [](const auto& a) {return a.h; });
-    vtkSmartPointer<vtkDoubleArray> colorField = vec2vtkDoubleArray(tmp);    
-    modifyPolyDataColorField(colorField);
+    modifyPolyDataColorField(vec2vtkDoubleArray(tmp));
 }
 
 
@@ -445,12 +442,7 @@ void NEW3D::showColorImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
     vtkDataArray* tmp = extractCompFilter->GetOutput()->GetPointData()->GetScalars(); // return active scalar data
     // this only work on z component
     // vtkDataArray* tmp = img->GetPointData()->GetScalars("Height_Field");
-    bool correctOrNot = false;
-    if (correctOrNot)
-    {
-        tmp = pImg->GetPointData()->GetScalars("Height_Field");
-    }
-
+    
     double minHeight = VTK_DOUBLE_MAX, maxHeight = VTK_DOUBLE_MIN;
     for (vtkIdType i = 0; i < tmp->GetNumberOfTuples(); ++i)
     {
@@ -466,8 +458,6 @@ void NEW3D::showColorImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
     
     //m_pLookupTable->SetRange(minHeight, maxHeight);
 
-    // decoupling from m_pPoints
-    // m_pLookupTable->SetRange(m_pPoints->GetBounds()[comp * 2], m_pPoints->GetBounds()[comp * 2 + 1]);
     /* !error:
     double* bounds = extractCompFilter->GetOutput()->GetBounds();
     m_pLookupTable->SetRange(bounds[2], bounds[3]);*/
@@ -562,14 +552,11 @@ vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const std::vector<DIM3
         return nullptr;
     }
     vtkSmartPointer<vtkPoints> vtkPoints = vec2vtkPoints(point3dVec);
-    vtkSmartPointer<vtkDoubleArray> colorField = vtkSmartPointer<vtkDoubleArray>::New();
-    colorField->SetNumberOfTuples((vtkIdType)point3dVec.size());
-    colorField->SetNumberOfComponents(1);
-    for (size_t i = 0; i < point3dVec.size(); ++i)
-    {
-        colorField->SetValue(i, point3dVec[i].h);
-    }
-    return toBuildPointCloudData(vtkPoints, colorField);
+    auto m = vtkPoints->GetData()->GetNumberOfValues();
+    auto mm = vtkPoints->GetData()->GetSize();
+    vector<double> tmp(point3dVec.size());
+    std::transform(point3dVec.begin(), point3dVec.end(), tmp.begin(), [](const auto& a) {return a.h; });
+    return toBuildPointCloudData(vtkPoints, vec2vtkDoubleArray(tmp));
 }
 
 vtkSmartPointer<vtkActor> NEW3D::toBuildPolyDataActor(const vtkSmartPointer<vtkPolyData>& pData)
@@ -673,7 +660,7 @@ void NEW3D::updatePointCloud(bool update)
 {
     if (update)
     {
-        m_pPointCloudPolyData = toBuildPointCloudData(m_pPoints);
+        m_pPointCloudPolyData = toBuildPointCloudData(m_point3dVec);
         m_pPointCloudStyle->SetInteractData(m_pPointCloudPolyData);
         m_pPointCloudActor = toBuildPolyDataActor(m_pPointCloudPolyData);
     }
@@ -707,7 +694,7 @@ vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
     int minIdy = static_cast<int>(extent[2] / space[1]);
     int maxIdy = static_cast<int>(extent[3] / space[1]);    
 
-    /* //function of the following lines isn't same to extractVOI
+    /* //function: GetScalarPointerForExtent isn't same to extractVOI
     int dim[6] = { minIdx, maxIdx, minIdy, maxIdy, 0, 0 };
     auto pts = static_cast<double*>(m_pImage->GetScalarPointerForExtent(dim));*/
 
@@ -724,7 +711,7 @@ vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
         return result;
     }
     result = vtkSmartPointer<vtkPoints>::New();
-    // You cannot determine the number of points you picked, which have value.
+    // You cannot determine the points you picked have value or not.
     //result->SetNumberOfPoints(num);
 
     auto pts2 = static_cast<double*>(extractImg->GetScalarPointer());
