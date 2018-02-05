@@ -44,6 +44,28 @@ namespace DIM3
         double h;
         size_t index;  // index in image
     };
+
+    class ImageParam
+    {
+    public:
+        ImageParam()
+        {
+            offset[0] = -16.0;
+            offset[1] = -14.99;
+            offset[2] = -5.99;
+            space[0] = 0.016;
+            space[1] = 0.02;
+            initValue = VTK_DOUBLE_MIN;
+            rcNum[0] = 2000;
+            rcNum[1] = 1500;
+            compNum = 1;
+        }
+        double offset[3];
+        double space[2];
+        double initValue;
+        int rcNum[2];
+        int compNum;
+    };
 }
 
 
@@ -80,8 +102,12 @@ private:
                                                        const vtkSmartPointer<vtkDoubleArray>& colorField = NULL) const;
     vtkSmartPointer<vtkPolyData> toBuildPointCloudData(const std::vector<DIM3::Point3d>& point3dVec) const;
     vtkSmartPointer<vtkActor> toBuildPolyDataActor(const vtkSmartPointer<vtkPolyData>& pData);
+
     vtkSmartPointer<vtkImageData> toBuildImageData(std::vector<DIM3::Point3d>& point3dVec);
-    vtkSmartPointer<vtkImageData> initImageData(double initZ = 0);
+    vtkSmartPointer<vtkImageData> NEW3D::toBuildHeightImageData(const vtkSmartPointer<vtkImageData>& pImg);
+    
+    vtkSmartPointer<vtkImageData> initImageData(double initZ, int numComp);
+    vtkSmartPointer<vtkImageData> initImageData(const DIM3::ImageParam&);
     void updatePointCloud(bool update);
     void updateImage(bool update);
 

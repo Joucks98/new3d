@@ -14,11 +14,27 @@
    <string>3D</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
-     <widget class="QVTKWidget" name="m_qVTKViewer" native="true"/>
-    </item>
-   </layout>
+   <widget class="QWidget" name="horizontalLayoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>40</x>
+      <y>30</y>
+      <width>731</width>
+      <height>341</height>
+     </rect>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QVTKWidget" name="m_qVTKViewer" native="true">
+       <zorder>m_qVTKViewer_2</zorder>
+       <zorder>m_qVTKViewer_2</zorder>
+      </widget>
+     </item>
+     <item>
+      <widget class="QVTKWidget" name="m_qVTKViewer_2" native="true"/>
+     </item>
+    </layout>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
