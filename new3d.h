@@ -94,7 +94,7 @@ private slots:
 
 private:
     void showPointCloud(bool updateOrNot);
-    void showColorImage(const vtkSmartPointer<vtkImageData>& img, int comp);
+    void showImage(const vtkSmartPointer<vtkImageData>& img, int comp);
     bool readData(const std::string& fileName);
 
 

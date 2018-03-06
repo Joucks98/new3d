@@ -51,6 +51,7 @@ namespace DIM3 {
         }
     }
 
+
     double calcStandardVariance(const std::vector<double>& data)
     {
         if (data.size() < 2)

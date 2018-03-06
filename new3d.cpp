@@ -114,8 +114,12 @@ NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent),
     m_roi3DMTimeCache = 0;
 
     ui.actionZ->setEnabled(false);
-    ui.menuStyle->setEnabled(false);
+    //ui.menuStyle->setEnabled(false);
     ui.action3D->setEnabled(false);
+
+    // avoid showing blank view
+    ui.m_qVTKViewer->GetRenderWindow()->Render();
+    ui.m_qVTKViewer_2->GetRenderWindow()->Render();
 }
 
 
@@ -173,10 +177,10 @@ void NEW3D::on_actionImport_triggered()
 
 void NEW3D::on_actionZ_triggered()
 {
-    showColorImage(m_pImage, 2); // ...dig into
-    ui.actionZ->setEnabled(false);
-    ui.menuStyle->setEnabled(true);
-    ui.action3D->setEnabled(true);
+    showImage(m_pImage, 2); // ...dig into
+    //ui.actionZ->setEnabled(false);
+    //ui.menuStyle->setEnabled(true);
+    //ui.action3D->setEnabled(true);
 }
 
 void NEW3D::on_actionCacheImage_triggered()
@@ -191,9 +195,9 @@ void NEW3D::on_actionCacheImage_triggered()
 void NEW3D::on_action3D_triggered()
 {
     showPointCloud(0);
-    ui.action3D->setEnabled(false);
-    ui.actionZ->setEnabled(true);
-    ui.menuStyle->setEnabled(false);
+    //ui.action3D->setEnabled(false);
+    //ui.actionZ->setEnabled(true);
+    //ui.menuStyle->setEnabled(false);
 }
 
 void NEW3D::on_actionRubber_toggled()
@@ -240,14 +244,14 @@ void NEW3D::on_actionRubber_hovered()
 
 void NEW3D::on_actionX_triggered()
 {
-    showColorImage(m_pImage, 0);
-    ui.menuStyle->setEnabled(true);
+    showImage(m_pImage, 0);
+    //ui.menuStyle->setEnabled(true);
 }
 
 void NEW3D::on_actionY_triggered()
 {
-    showColorImage(m_pImage, 1);
-    ui.menuStyle->setEnabled(true);
+    showImage(m_pImage, 1);
+    //ui.menuStyle->setEnabled(true);
 }
 
 void NEW3D::on_actionFit_Plane_toggled()
@@ -289,7 +293,7 @@ void NEW3D::on_actionFit_Plane_toggled()
 void NEW3D::on_actionPick_Points_toggled()
 {
     m_pRenderer->RemoveActor(m_pRoi3DActor);
-    if (ui.actionPick_Points->isChecked())
+    if (ui.actionPick_Points->isChecked() /*&& m_pImageViewer->GetRenderer()->HasViewProp(m_pRoi2DActor)*/)
     {
         if (m_pRoi2DActor->GetMTime() > m_roi2DMTimeCache)
         {
@@ -299,14 +303,14 @@ void NEW3D::on_actionPick_Points_toggled()
             if (roiPts != NULL)
             {
                 // save roiData
-                ofstream outfile("../roiData.txt", ios::trunc);
+                /*ofstream outfile("../roiData.txt", ios::trunc);
                 for (int i = 0; i < roiPts->GetNumberOfPoints(); ++i)
                 {
                     outfile << roiPts->GetPoint(i)[0] << "," <<
                         roiPts->GetPoint(i)[1] << "," <<
                         roiPts->GetPoint(i)[2] << endl;
                 }
-                outfile.close();
+                outfile.close();*/
 
                 // build m_pRoi3DActor
                 auto polyData = toBuildPointCloudData(roiPts);
@@ -337,45 +341,46 @@ void NEW3D::on_actionPick_Points_toggled()
 void NEW3D::on_actionCorrect_triggered()
 {
     auto roiData = GetImageRoiPointsWorldData();
-    //vtkSmartPointer<vtkDoubleArray> colorScalarArray = vtkSmartPointer<vtkDoubleArray>::New();
-    if (roiData != NULL)
+    if (roiData == nullptr)
     {
-        double normal[3], origin[3];
-        if (planeFitting(filterPoints(roiData), normal, origin))
-        {
-            std::cerr << "fitting error!" << endl;
-            return;
-        }
-        vtkMath::Normalize(normal);
-
-        double* ptr = (double*)m_pImage->GetScalarPointer(); 
-        vtkDataArray* heightField = m_pImage->GetPointData()->GetScalars("Height_Field");
-        int numComp = m_pImage->GetNumberOfScalarComponents();
-        vector<double> tmp(numComp);        
-        for (size_t i = 0; i < m_point3dVec.size(); ++i)
-        {
-            for (size_t j = 0; j < numComp; ++j)
-            {
-                tmp[j] = ptr[numComp * m_point3dVec[i].index + j] - origin[j];
-            }
-            double height = vtkMath::Dot(normal, &tmp[0]);
-            //ptr[scalarId + 2] = height;
-            heightField->SetTuple1(m_point3dVec[i].index, height); // change m_pImage
-            m_point3dVec[i].h = height; // change m_point3dVec
-        }
-
-        /*ofstream outfile("../height.txt",ios::trunc);
-        for (int i = 0; i < m_point3dVec.size(); ++i)
-        {
-            outfile << m_point3dVec[i].h<< endl;
-        }
-        outfile.close();*/
+        return;
     }
+    double normal[3], origin[3];
+    if (planeFitting(filterPoints(roiData), normal, origin))
+    {
+        std::cerr << "fitting error!" << endl;
+        return;
+    }
+    vtkMath::Normalize(normal);
+
+    double* ptr = (double*)m_pImage->GetScalarPointer();
+    vtkDataArray* heightField = m_pImage->GetPointData()->GetScalars("Height_Field");
+    int numComp = m_pImage->GetNumberOfScalarComponents();
+    vector<double> tmp(numComp);
+    for (size_t i = 0; i < m_point3dVec.size(); ++i)
+    {
+        for (size_t j = 0; j < numComp; ++j)
+        {
+            tmp[j] = ptr[numComp * m_point3dVec[i].index + j] - origin[j];
+        }
+        double height = vtkMath::Dot(normal, &tmp[0]);
+        heightField->SetTuple1(m_point3dVec[i].index, height); // change m_pImage
+        m_point3dVec[i].h = height; // change m_point3dVec
+    }
+
+    /*ofstream outfile("../height.txt",ios::trunc);
+    for (int i = 0; i < m_point3dVec.size(); ++i)
+    {
+    outfile << m_point3dVec[i].h<< endl;
+    }
+    outfile.close();*/
+
+
     //m_pImage->GetPointData()->SetActiveScalars("Height_Field");
 
     // the following line return all three components of points in m_pImage
     // auto vv = m_pImage->GetPointData()->GetScalars();
-    showColorImage(m_pImage, 3);
+    showImage(m_pImage, 3);
     //ui.m_qVTKViewer->GetRenderWindow()->Render();
 
     
@@ -410,8 +415,17 @@ void NEW3D::showPointCloud(bool updateOrNot)
     // update cubeAxes
     updateCubeAxesActor();
     // update scalerBarWidget
-    
-    initScalarBar(m_pScalarBarWidget);
+    /*if (m_pScalarBarWidget == nullptr)
+    {
+        vtkSmartPointer<vtkScalarBarActor> scalarBarActor = vtkSmartPointer<vtkScalarBarActor>::New();
+        scalarBarActor->SetOrientationToHorizontal();
+        scalarBarActor->SetLookupTable(m_pLookupTable);
+        m_pRenderer->AddActor2D(scalarBarActor);
+    }
+    else
+    {
+        initScalarBar(m_pScalarBarWidget);
+    }*/
 
     // rendering
     m_pRenderer->ResetCamera();
@@ -423,7 +437,7 @@ void NEW3D::showPointCloud(bool updateOrNot)
     ui.m_qVTKViewer_2->GetRenderWindow()->Render();
 }
 
-void NEW3D::showColorImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
+void NEW3D::showImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
 {
     if (pImg == NULL)
         return;
@@ -650,14 +664,6 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildHeightImageData(const vtkSmartPointe
     // init imagedata parameter
     auto img = initImageData(VTK_DOUBLE_MIN, 1);
 
-    //vtkSmartPointer<vtkDoubleArray> posField = vtkSmartPointer<vtkDoubleArray>::New();
-    //posField->SetName("PosID_Field");
-    //posField->SetNumberOfComponents(1);
-    //posField->SetNumberOfTuples(img->GetNumberOfPoints());
-    //for (vtkIdType i = 0; i < img->GetNumberOfPoints(); ++i)
-    //{
-    //    posField->SetTuple1(i, -1);
-    //}
     vtkDataArray* tmp = pImg->GetPointData()->GetScalars("Height_Field");
     if (tmp == nullptr)
     {
@@ -670,11 +676,8 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildHeightImageData(const vtkSmartPointe
         {
             *(ptr + i) = tmp->GetTuple1(i);
         }        
-        //posField->SetValue(point3dVec[i].index, i);  // the index in point3dVec
     }
 
-    //img->GetPointData()->AddArray(posField);
-    
     return img;
 }
 

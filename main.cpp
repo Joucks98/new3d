@@ -1,3 +1,4 @@
+#include <vld.h>
 #include <QtWidgets\qapplication.h>
 #include "new3d.h"
 int main(int argc, char* argv[])
