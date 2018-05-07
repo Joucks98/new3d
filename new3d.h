@@ -2,6 +2,7 @@
 #define __NEW3D_H__
 
 #include <vector>
+#include <assert.h>
 
 #include <QtWidgets/qmainwindow.h>
 
@@ -38,6 +39,12 @@ namespace DIM3
         
         Point3d(double a, double b, double c):x(a), y(b), z(c), h(c), index(-1) {}
         //Point3d(const Point3d& t): x(t.x), y(t.y), z(t.z) {}
+        double value(int id) const {
+            assert(id == 0 || id == 1 || id == 2);
+            if (id == 0) return x;
+            else if (id == 1) return y;
+            else return z;
+        }
         double x;
         double y;
         double z;

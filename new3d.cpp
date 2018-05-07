@@ -47,12 +47,19 @@
 #include <vtkAxesActor.h>
 #include <vtkOrientationMarkerWidget.h>
 #include <vtkImageMapper3D.h>
-
+#include <vtkVertexGlyphFilter.h>
+#include <vtkElevationFilter.h>
 
 #include "new3d.h"
 #include "InteractorStylePointCloud.h"
 #include "ImageCallBack.h"
 #include "Algorithm3D.h"
+
+#define VTK_BUILD(type, name) \
+    name = vtkSmartPointer<type>::New()
+#define VTK_CREATE(type, name) \
+    vtkSmartPointer<type> VTK_BUILD(type, name)
+
 
 using std::vector;
 using std::stringstream;
@@ -116,6 +123,7 @@ NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent),
     ui.actionZ->setEnabled(false);
     //ui.menuStyle->setEnabled(false);
     ui.action3D->setEnabled(false);
+    ui.actionFit_Plane->setEnabled(false);
 
     // avoid showing blank view
     ui.m_qVTKViewer->GetRenderWindow()->Render();
@@ -266,13 +274,16 @@ void NEW3D::on_actionFit_Plane_toggled()
             auto roiData = GetImageRoiPointsWorldData();
             if (roiData != NULL)
             {
-                double normal[3], origin[3];
-                planeFitting(filterPoints(roiData), normal, origin);
+                double normal[3] = {0}, origin[3];
+                planeFitting2(filterPoints(roiData), normal, origin);
                 double *bound = roiData->GetBounds();
                 m_pFitPlaneActor = generateFitPlaneActor(normal, origin, bound[1] - bound[0], bound[3] - bound[2]);
                 // this all 0
                 /*auto oo = m_pFitPlaneActor->GetOrigin();
                 auto pp = m_pFitPlaneActor->GetPosition();*/
+                planeFitting(filterPoints(roiData), normal, origin);
+                //generateFitPlaneActor(normal, origin, bound[1] - bound[0], bound[3] - bound[2]);
+                int mm = 3;
             }
             m_pRenderer->AddActor(m_pFitPlaneActor);
 
@@ -328,13 +339,23 @@ void NEW3D::on_actionPick_Points_toggled()
 
             m_roi2DMTimeCache = m_pRoi2DActor->GetMTime();
         }
-        m_pRoi3DActor->SetVisibility(1);
-        m_pRenderer->AddActor(m_pRoi3DActor);
+        if (m_pRoi3DActor != nullptr)
+        {
+            m_pRoi3DActor->SetVisibility(1);
+            m_pRenderer->AddActor(m_pRoi3DActor);
+        }
+        
     }
     else
     {
         //m_pRoi3DActor->SetVisibility(0); // will modify m_pRoi3DActor
     }
+
+    if (m_pRoi3DActor != nullptr)
+    {
+        ui.actionFit_Plane->setEnabled(true);
+    }
+    
     ui.m_qVTKViewer_2->GetRenderWindow()->Render();
 }
 
@@ -356,14 +377,14 @@ void NEW3D::on_actionCorrect_triggered()
     double* ptr = (double*)m_pImage->GetScalarPointer();
     vtkDataArray* heightField = m_pImage->GetPointData()->GetScalars("Height_Field");
     int numComp = m_pImage->GetNumberOfScalarComponents();
-    vector<double> tmp(numComp);
+    vector<double> tm(numComp);
     for (size_t i = 0; i < m_point3dVec.size(); ++i)
     {
         for (size_t j = 0; j < numComp; ++j)
         {
-            tmp[j] = ptr[numComp * m_point3dVec[i].index + j] - origin[j];
+            tm[j] = ptr[numComp * m_point3dVec[i].index + j] - origin[j];
         }
-        double height = vtkMath::Dot(normal, &tmp[0]);
+        double height = vtkMath::Dot(normal, &tm[0]);
         heightField->SetTuple1(m_point3dVec[i].index, height); // change m_pImage
         m_point3dVec[i].h = height; // change m_point3dVec
     }
@@ -415,6 +436,7 @@ void NEW3D::showPointCloud(bool updateOrNot)
     // update cubeAxes
     updateCubeAxesActor();
     // update scalerBarWidget
+    initScalarBar(m_pScalarBarWidget);
     /*if (m_pScalarBarWidget == nullptr)
     {
         vtkSmartPointer<vtkScalarBarActor> scalarBarActor = vtkSmartPointer<vtkScalarBarActor>::New();
@@ -572,6 +594,19 @@ vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<
     }   
 
     return polyData;
+
+    /*VTK_CREATE(vtkVertexGlyphFilter, vertexGlyphFilter);
+    vertexGlyphFilter->SetInputData(polyData);
+    vertexGlyphFilter->Update();
+
+    VTK_CREATE(vtkElevationFilter, elevationFilter);
+    elevationFilter->SetScalarRange(vertexGlyphFilter->GetOutput()->GetBounds() + 4);
+    elevationFilter->SetInputConnection(vertexGlyphFilter->GetOutputPort());
+
+    VTK_CREATE(vtkPolyDataMapper, polyDataMapper);
+    polyDataMapper->SetInputConnection(elevationFilter->GetOutputPort());
+    polyDataMapper->SetLookupTable(m_pLookupTable);
+    polyDataMapper->SetUseLookupTableScalarRange(1);*/
 }
 
 vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const std::vector<DIM3::Point3d>& point3dVec) const

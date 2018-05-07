@@ -9,9 +9,12 @@
 #include <vtkKMeansStatistics.h>
 #include <vtkIdList.h>
 
-#include <numeric>
+#include <numeric> // accumulate
 #include <algorithm>
+//#include "D:\\Program Files\\eigen\\Eigen\\Core"
+#include "D:\\Program Files\\eigen\\Eigen\\Eigen"
 
+using namespace Eigen;
 
 namespace DIM3 {
     vtkSmartPointer<vtkDoubleArray> vec2vtkDoubleArray(const std::vector<double> vec)
@@ -51,6 +54,18 @@ namespace DIM3 {
         }
     }
 
+    void vtkPoints2Point3dVec(vtkPoints* vtkPts, std::vector<Point3d>* ptVec)
+    {
+        ptVec->clear();
+        if (vtkPts == NULL || ptVec == NULL)
+            return;
+        ptVec->reserve(vtkPts->GetNumberOfPoints());
+        for (vtkIdType i = 0; i < vtkPts->GetNumberOfPoints(); ++i)
+        {
+            double* tuple = vtkPts->GetPoint(i);
+            ptVec->emplace_back(tuple[0], tuple[1], tuple[2]);
+        }
+    }
 
     double calcStandardVariance(const std::vector<double>& data)
     {
@@ -191,6 +206,62 @@ namespace DIM3 {
         return reducedPts;
     }
 
+    int planeFitting2(vtkPoints* pts, double normal[3], double origin[3], int iterNum = 100)
+    {
+        if (pts == NULL || pts->GetNumberOfPoints() == 0)
+        {
+            return 1; // error occur
+        }
+        std::vector<Point3d> pointsVec;
+        vtkPoints2Point3dVec(pts, &pointsVec);
+
+        size_t num = pointsVec.size();
+        MatrixXf MX1(num, 3);
+        MatrixXf MY1(num, 1);
+        for (size_t i = 0; i < num; ++i)
+        {
+            MX1(i, 0) = pointsVec[i].x;
+            MX1(i, 1) = pointsVec[i].y;
+            MX1(i, 2) = 1;
+            MY1(i, 0) = pointsVec[i].z;
+        }
+        MatrixXf tmp1 = MX1.transpose()*MX1;
+        Vector3f P1 = tmp1.inverse()*(MX1.transpose()*MY1);
+        Vector3f P2;
+        MatrixXf W(num, 3);
+        for (int k = 0; k < iterNum; ++k)
+        {
+            MatrixXf re = MX1*P1 - MY1;
+            re = re.cwiseAbs();
+            MatrixXf dd = re / sqrt(P1(0)*P1(0) + P1(1)*P1(1) + 1);
+            float mean = dd.sum() / dd.rows();
+            MatrixXf der = dd.array() - mean;
+            float sigma = sqrt(der.squaredNorm() / (der.rows() - 1));
+            for (size_t i = 0; i < num; ++i)
+            {
+                W.row(i) = Vector3f::Constant(abs(der(i)) > 2 * sigma ? mean / dd(i) : 1);
+            }
+            tmp1 = MX1.transpose()*(W.cwiseProduct(MX1));
+            P2 = tmp1.inverse()* (MX1.transpose()* (W.col(0).cwiseProduct(MY1)));
+
+            Vector3f P1tmp(P1), P2tmp(P2);
+            P1tmp(2) = -1;
+            P1tmp.normalize();
+            P2tmp(2) = -1;
+            P2tmp.normalize();
+            if (abs(P1tmp.dot(P2tmp) - 1) < 1e-12)
+            {
+                break;
+            }
+            P1 = P2;
+        }
+        normal[0] = P2(0); normal[1] = P2(1); normal[2] = -1;
+        vtkMath::Normalize(normal);
+        origin[0] = std::accumulate(pointsVec.begin(), pointsVec.end(), 0.0, [](double r, const Point3d& a) {return r += a.x; })/num;
+        origin[1] = std::accumulate(pointsVec.begin(), pointsVec.end(), 0.0, [](double r, const Point3d& a) {return r += a.y; })/num;
+        origin[2] = P2(0)*origin[0] + P2(1)*origin[1] + P2[2];
+        return 0;
+    }
     int planeFitting(vtkPoints* pts, double normal[3], double origin[3], int iterNum = 100)
     {
         if (pts == NULL || pts->GetNumberOfPoints() == 0)

@@ -14,27 +14,41 @@
    <string>3D</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QWidget" name="horizontalLayoutWidget">
-    <property name="geometry">
-     <rect>
-      <x>40</x>
-      <y>30</y>
-      <width>731</width>
-      <height>341</height>
-     </rect>
-    </property>
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <item>
-      <widget class="QVTKWidget" name="m_qVTKViewer" native="true">
-       <zorder>m_qVTKViewer_2</zorder>
-       <zorder>m_qVTKViewer_2</zorder>
-      </widget>
-     </item>
-     <item>
-      <widget class="QVTKWidget" name="m_qVTKViewer_2" native="true"/>
-     </item>
-    </layout>
-   </widget>
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QVTKWidget" name="m_qVTKViewer" native="true"/>
+        </item>
+        <item>
+         <widget class="QVTKWidget" name="m_qVTKViewer_2" native="true">
+          <zorder>m_qVTKViewer</zorder>
+          <zorder>m_qVTKViewer</zorder>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Preferred</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>17</width>
+          <height>78</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </item>
+   </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
