@@ -87,45 +87,60 @@ namespace DIM3 {
         {
             return nullptr;
         }
-        std::vector<double> zVec;
-        vtkPoints2Vec(pts, &zVec, 2);
-        // get rid of outliers
-        double sigma = calcStandardVariance(zVec);
-
-        std::sort(zVec.begin(), zVec.end());
-
-        double midZValue = zVec.size() > 0 ? zVec[(size_t)(zVec.size()*.5)]: 0.0; // middle value
-
-        vtkSmartPointer<vtkIdList> pickedIdList0 = vtkSmartPointer<vtkIdList>::New();
-        vtkSmartPointer<vtkIdList> pickedIdList1 = vtkSmartPointer<vtkIdList>::New();
-        for (vtkIdType i = 0; i < pts->GetNumberOfPoints(); ++i)
+        
+        std::vector<Point3d> originalPointsVec;
+        vtkPoints2Point3dVec(pts, &originalPointsVec);
+        auto num = originalPointsVec.size();
+        std::sort(originalPointsVec.begin(), originalPointsVec.end(), [](const Point3d& a, const Point3d& b) {return a.z < b.z; });
+        auto midIter = originalPointsVec.begin() + static_cast<size_t>(num*.5);
+        auto lowIter = originalPointsVec.begin() + static_cast<size_t>(.025*num);
+        auto highIter = originalPointsVec.begin() + static_cast<size_t>(.975*num);
+        std::vector<Point3d> resultPoints;
+        if (midIter->z < .5*(lowIter->z + highIter->z))
         {
-            double* tmp = pts->GetPoint(i);
-            if (std::abs(tmp[2] - midZValue) > 2 * sigma)
-            {
-                continue;
-            }
-            if (tmp[2] < midZValue)
-            {
-                pickedIdList0->InsertNextId(i);
-            }
-            else
-            {
-                pickedIdList1->InsertNextId(i);
-            }                
-        }
-
-        vtkSmartPointer<vtkPoints> result = vtkSmartPointer<vtkPoints>::New();
-        if (pickedIdList0->GetNumberOfIds() > pickedIdList1->GetNumberOfIds())
-        {
-            pts->GetPoints(pickedIdList0, result);
+            resultPoints.assign(lowIter, midIter);
         }
         else
         {
-            pts->GetPoints(pickedIdList1, result);
+            resultPoints.assign(midIter, highIter);
         }
+        return vec2vtkPoints(resultPoints);
 
-        return result;
+
+        //std::vector<double> zVec;
+        //vtkPoints2Vec(pts, &zVec, 2);
+        //// get rid of outliers
+        //double sigma = calcStandardVariance(zVec);
+        //std::sort(zVec.begin(), zVec.end());
+        //double midZValue = zVec.size() > 0 ? zVec[(size_t)(zVec.size()*.5)]: 0.0; // middle value
+        //vtkSmartPointer<vtkIdList> pickedIdList0 = vtkSmartPointer<vtkIdList>::New();
+        //vtkSmartPointer<vtkIdList> pickedIdList1 = vtkSmartPointer<vtkIdList>::New();
+        //for (vtkIdType i = 0; i < pts->GetNumberOfPoints(); ++i)
+        //{
+        //    double* tmp = pts->GetPoint(i);
+        //    if (std::abs(tmp[2] - midZValue) > 2 * sigma)
+        //    {
+        //        continue;
+        //    }
+        //    if (tmp[2] < midZValue)
+        //    {
+        //        pickedIdList0->InsertNextId(i);
+        //    }
+        //    else
+        //    {
+        //        pickedIdList1->InsertNextId(i);
+        //    }                
+        //}
+        //vtkSmartPointer<vtkPoints> result = vtkSmartPointer<vtkPoints>::New();
+        //if (pickedIdList0->GetNumberOfIds() > pickedIdList1->GetNumberOfIds())
+        //{
+        //    pts->GetPoints(pickedIdList0, result);
+        //}
+        //else
+        //{
+        //    pts->GetPoints(pickedIdList1, result);
+        //}
+        //return result;
 
         // Get the points into the format needed for KMeans
         vtkSmartPointer<vtkTable> inputData =
@@ -206,6 +221,51 @@ namespace DIM3 {
         return reducedPts;
     }
 
+    bool modeFilter(const std::vector<Point3d> & pointsVec, std::vector<double>* pickRange)
+    {
+        assert(pickRange != nullptr);
+        pickRange->clear();
+        auto num = pointsVec.size();
+        if (pointsVec.empty())
+        {
+            return false;
+        }
+        /*VectorXi indexes = VectorXi::LinSpaced(num, 0, num - 1);
+        std::sort(indexes.data(), indexes.data() + indexes.size(),
+        [&pointsVec](int a, int b) {return pointsVec[a].z < pointsVec[b].z; });*/
+        std::vector<int> indexes(pointsVec.size());
+        std::generate(indexes.begin(), indexes.end(), [n = 0]() mutable {return n++; });
+        std::sort(indexes.data(), indexes.data() + indexes.size(),
+            [&pointsVec](int a, int b) {return pointsVec[a].z < pointsVec[b].z; });
+        /*auto mm = MY1.array().sum() / num;
+        auto absDer = (MY1.array() - mm).abs();
+        auto r = 2*sqrt(absDer.square().sum() / (num - 1));
+        W1 = ((MY1.array() - MY1(indexes(num/2),0)).array() > r).select(0, W1);*/
+
+
+        auto mm = num >> 1;
+        double medianZ = pointsVec[indexes[mm]].z;
+        auto meanZ = std::accumulate(pointsVec.begin(), pointsVec.end(), 0.0,
+            [](double re, auto& a) { return re += a.z; }) / num;  // use mean avoid outliers.
+                                                                  //int tm = static_cast<int>(num / 40);
+        if (medianZ < meanZ)
+        {
+            int low = 0;//tm;
+            int high = mm;
+            pickRange->push_back(pointsVec[indexes[low]].z);
+            pickRange->push_back(2 * pointsVec[indexes[high]].z - pointsVec[indexes[low]].z);
+        }
+        else
+        {
+            int low = mm; /*mm+1: may exceed range*/
+            int high = num - 1;// -tm;
+            pickRange->push_back(2 * pointsVec[indexes[low]].z - pointsVec[indexes[high]].z);
+            pickRange->push_back(pointsVec[indexes[high]].z);
+        }        
+        return true;
+    }
+
+
     int planeFitting2(vtkPoints* pts, double normal[3], double origin[3], int iterNum = 100)
     {
         if (pts == NULL || pts->GetNumberOfPoints() == 0)
@@ -214,47 +274,48 @@ namespace DIM3 {
         }
         std::vector<Point3d> pointsVec;
         vtkPoints2Point3dVec(pts, &pointsVec);
+        std::vector<double> pickRange;
+        for (size_t i = 0; i < 3; ++i)
+        {
+            auto tmp = pointsVec.size();
+            std::vector<double> tmpRange;
+            if (modeFilter(pointsVec, &tmpRange))
+            {
+                pickRange = tmpRange;
+                pointsVec.erase(std::remove_if(pointsVec.begin(), pointsVec.end(), [&tmpRange](auto& p) {
+                    return p.z < tmpRange[0] || p.z > tmpRange[1]; }), pointsVec.end());
+                double percent = pointsVec.size() * 1.0 / tmp;
+                if (percent > .9)
+                {
+                    break;
+                }
+            }
+        }
 
-        size_t num = pointsVec.size();
+        auto num = pointsVec.size();
+
         MatrixXf MX1(num, 3);
         MatrixXf MY1(num, 1);
         for (size_t i = 0; i < num; ++i)
         {
-            MX1(i, 0) = pointsVec[i].x;
-            MX1(i, 1) = pointsVec[i].y;
-            MX1(i, 2) = 1;
+            MX1(i, 0) = pointsVec[i].x;  MX1(i, 1) = pointsVec[i].y;  MX1(i, 2) = 1;
             MY1(i, 0) = pointsVec[i].z;
         }
-        MatrixXf tmp1 = MX1.transpose()*MX1;
-        Vector3f P1 = tmp1.inverse()*(MX1.transpose()*MY1);
-        Vector3f P2;
-        MatrixXf W(num, 3);
-        for (int k = 0; k < iterNum; ++k)
-        {
-            MatrixXf re = MX1*P1 - MY1;
-            re = re.cwiseAbs();
-            MatrixXf dd = re / sqrt(P1(0)*P1(0) + P1(1)*P1(1) + 1);
-            float mean = dd.sum() / dd.rows();
-            MatrixXf der = dd.array() - mean;
-            float sigma = sqrt(der.squaredNorm() / (der.rows() - 1));
-            for (size_t i = 0; i < num; ++i)
-            {
-                W.row(i) = Vector3f::Constant(abs(der(i)) > 2 * sigma ? mean / dd(i) : 1);
-            }
-            tmp1 = MX1.transpose()*(W.cwiseProduct(MX1));
-            P2 = tmp1.inverse()* (MX1.transpose()* (W.col(0).cwiseProduct(MY1)));
 
-            Vector3f P1tmp(P1), P2tmp(P2);
-            P1tmp(2) = -1;
-            P1tmp.normalize();
-            P2tmp(2) = -1;
-            P2tmp.normalize();
-            if (abs(P1tmp.dot(P2tmp) - 1) < 1e-12)
+        /*MatrixXf W1 = MatrixXf::Zero(num, 1);
+        for (size_t i = 0; i < num; ++i)
+        {
+            if (pointsVec[i].z > pickRange[0] && pointsVec[i].z < pickRange[1])
             {
-                break;
+                W1(i) = 1;
             }
-            P1 = P2;
         }
+        MatrixXf W(num, 3);
+        W << W1, W1, W1;*/
+
+
+        MatrixXf tmp1 = MX1.transpose()*MX1;//W.cwiseProduct(MX1);
+        Vector3f P2 = tmp1.inverse()*(MX1.transpose()*MY1);//W1.cwiseProduct(MY1));
         normal[0] = P2(0); normal[1] = P2(1); normal[2] = -1;
         vtkMath::Normalize(normal);
         origin[0] = std::accumulate(pointsVec.begin(), pointsVec.end(), 0.0, [](double r, const Point3d& a) {return r += a.x; })/num;

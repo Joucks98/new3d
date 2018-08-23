@@ -36,7 +36,7 @@ namespace DIM3
     class Point3d
     {
     public:
-        
+        Point3d() :x(0.0), y(0.0), z(0.0), h(0.0), index(-1) {}
         Point3d(double a, double b, double c):x(a), y(b), z(c), h(c), index(-1) {}
         //Point3d(const Point3d& t): x(t.x), y(t.y), z(t.z) {}
         double value(int id) const {
@@ -102,7 +102,8 @@ private slots:
 private:
     void showPointCloud(bool updateOrNot);
     void showImage(const vtkSmartPointer<vtkImageData>& img, int comp);
-    bool readData(const std::string& fileName);
+    bool readData(const std::string& fileName, std::vector<DIM3::Point3d>* ptVec);
+    bool dumpData(const std::string& path, const std::vector<DIM3::Point3d>& pointVec) const;
 
 
     vtkSmartPointer<vtkPolyData> toBuildPointCloudData(const vtkSmartPointer<vtkPoints>& vtkPoints, 
@@ -143,6 +144,8 @@ private:
     vtkSmartPointer<vtkImageActor> m_pRoi2DActor;
     vtkSmartPointer<vtkActor> m_pRoi3DActor;
     vtkSmartPointer<vtkActor> m_pFitPlaneActor;
+    vtkSmartPointer<vtkActor> m_pFitPlaneActor1;
+
 
     vtkSmartPointer<vtkScalarBarWidget> m_pScalarBarWidget;
 

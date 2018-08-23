@@ -76,9 +76,10 @@ static void CallbackFunc(vtkObject* obj, unsigned long eid, void* clientdata, vo
 
 
 NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent), 
-                                m_pPointCloudPolyData(NULL), 
-                                m_pRoi3DActor(NULL), 
-                                m_pFitPlaneActor(NULL),
+                                m_pPointCloudPolyData(nullptr), 
+                                m_pRoi3DActor(nullptr), 
+                                m_pFitPlaneActor(nullptr),
+                                m_pFitPlaneActor1(nullptr),
                                 isPointVecChanged(false)
 {
     ui.setupUi(this);
@@ -172,7 +173,7 @@ void NEW3D::on_actionImport_triggered()
     if (fileName.isEmpty())
         return;
     //... dig into : check file format,give feedback.
-    bool flag = readData(fileName.toStdString());
+    bool flag = readData(fileName.toStdString(), &m_point3dVec);
     if (flag)
     {
         updatePointCloud(1);
@@ -267,31 +268,36 @@ void NEW3D::on_actionFit_Plane_toggled()
     if (ui.actionFit_Plane->isChecked())
     {
         if ((m_pRoi3DActor->GetMTime() > m_roi3DMTimeCache)
-            || (m_pFitPlaneActor == NULL))
+            || (m_pFitPlaneActor == nullptr))
         {
             // update m_pFitPlaneActor
             m_pRenderer->RemoveActor(m_pFitPlaneActor);
+            m_pRenderer->RemoveActor(m_pFitPlaneActor1);
+
             auto roiData = GetImageRoiPointsWorldData();
             if (roiData != NULL)
             {
                 double normal[3] = {0}, origin[3];
-                planeFitting2(filterPoints(roiData), normal, origin);
+                planeFitting(filterPoints(roiData), normal, origin);
+                double normal1[3] = { 0 }, origin1[3];
+                planeFitting2(roiData, normal1, origin1);
                 double *bound = roiData->GetBounds();
-                m_pFitPlaneActor = generateFitPlaneActor(normal, origin, bound[1] - bound[0], bound[3] - bound[2]);
+                double tmpNormal[3] = { -normal[0], -normal[1], -normal[2] };
+                m_pFitPlaneActor = generateFitPlaneActor(tmpNormal, origin, bound[1] - bound[0], bound[3] - bound[2]);
+                m_pFitPlaneActor1 = generateFitPlaneActor(normal1, origin1, bound[1] - bound[0], bound[3] - bound[2]);
                 // this all 0
                 /*auto oo = m_pFitPlaneActor->GetOrigin();
                 auto pp = m_pFitPlaneActor->GetPosition();*/
-                planeFitting(filterPoints(roiData), normal, origin);
-                //generateFitPlaneActor(normal, origin, bound[1] - bound[0], bound[3] - bound[2]);
-                int mm = 3;
             }
             m_pRenderer->AddActor(m_pFitPlaneActor);
+            m_pRenderer->AddActor(m_pFitPlaneActor1);
 
             m_roi3DMTimeCache = m_pRoi3DActor->GetMTime();
         }
-        if (m_pFitPlaneActor != NULL)
+        if (m_pFitPlaneActor != nullptr)
         {
             m_pFitPlaneActor->SetVisibility(1);
+            m_pFitPlaneActor1->SetVisibility(1);
         }        
     }
     else
@@ -315,6 +321,11 @@ void NEW3D::on_actionPick_Points_toggled()
             {
                 // save roiData
                 /*ofstream outfile("../roiData.txt", ios::trunc);
+                if(!outfile.is_open())
+                {
+                    outfile.close();
+                    return;
+                }
                 for (int i = 0; i < roiPts->GetNumberOfPoints(); ++i)
                 {
                     outfile << roiPts->GetPoint(i)[0] << "," <<
@@ -533,22 +544,55 @@ void NEW3D::showImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
     ui.m_qVTKViewer->GetRenderWindow()->Render();
 }
 
-bool NEW3D::readData(const std::string & fileName)
+bool NEW3D::readData(const std::string & fileName, vector<Point3d>* ptVec)
 {
-    ifstream filesteram(fileName);
-    std::string line;
+    //ifstream filesteram(fileName);
+    //std::string line;
 
-    m_point3dVec.clear();
-    while (getline(filesteram, line))
+    //ptVec->clear();
+    //while (getline(filesteram, line))
+    //{
+    //    double x, y, z;
+    //    char c;        
+    //    stringstream linestream;
+    //    linestream << line;
+    //    //cout<< linestream.str() << endl;
+    //    linestream >> x >> c >> y >> c >> z >> c >> z;
+    //    //linestream.str("");
+    //    //cout << linestream.str() << endl;
+
+    //    //linestream.clear();
+    //    //cout << linestream.str() << endl;
+
+    //    ptVec->emplace_back(x, y, z);
+    //}
+    //filesteram.close();
+    std::ifstream inFile(fileName, ios::binary | ios::in);
+    if (!inFile.is_open())
     {
-        double x, y, z;
-        char c;
-        stringstream linestream;
-        linestream << line;
-        linestream >> x >> c >> y >> c >> z >> c >> z;
-        m_point3dVec.emplace_back(x, y, z);
+        return false;
     }
-    filesteram.close();
+
+    while (!inFile.eof())
+    {
+        Point3d tmp;
+        inFile.read((char*)&tmp, sizeof(tmp));
+        ptVec->push_back(std::move(tmp));
+    }
+    //dumpData("1.data", *ptVec);
+    return true;
+}
+
+bool NEW3D::dumpData(const std::string& path, const vector<Point3d>& pointVec) const
+{
+    std::ofstream outFile(path, ios::binary|ios::trunc);
+    if(!outFile.is_open())
+        return false;
+    for (auto& c : pointVec)
+    {
+        outFile.write((char*)&c, sizeof(c));
+    }
+    outFile.close();
     return true;
 }
 
@@ -562,13 +606,21 @@ vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<
     vtkSmartPointer<vtkCellArray> vertices = vtkSmartPointer<vtkCellArray>::New();
     vertices->Reset();
     vtkIdType num = vtkPoints->GetNumberOfPoints();
+    vtkIdType* wptr = vertices->WritePointer(num, 2 * num);
     for (vtkIdType i = 0; i < num; ++i)
     {
-        vtkSmartPointer<vtkIdList> pid = vtkSmartPointer<vtkIdList>::New();
-        pid->SetNumberOfIds(1);
-        pid->SetId(0, i);
-        vertices->InsertNextCell(pid);
+        wptr[2*i] = 1;
+        wptr[2*i + 1] = i;
     }
+    //vertices->SetNumberOfCells(num);
+    //for (vtkIdType i = 0; i < num; ++i)
+    //{
+    //    vtkSmartPointer<vtkIdList> pid = vtkSmartPointer<vtkIdList>::New();
+    //    pid->SetNumberOfIds(1);
+    //    pid->SetId(0, i);
+    //    //vertices->InsertNextCell(pid);
+    //    vertices->GetData()
+    //}
 
     vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New();
     polyData->SetPoints(vtkPoints);
@@ -846,7 +898,7 @@ vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
 }
 
 
-vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor(double * n, double * o, double width, double height) const
+vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor(double * n, double * o, double width, double length) const
 {
     //auto ptsData = GetImageRoiPointsWorldData();
     //if (ptsData == NULL)
@@ -856,7 +908,7 @@ vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor(double * n, double * o, d
     //planeFitting(filterPoints(ptsData), normal, origin);
 
     if (n == nullptr || o == nullptr 
-        || width < 0 || height < 0 )
+        || width < 0 || length < 0 )
     {
         return vtkSmartPointer<vtkActor>();
     }
@@ -865,7 +917,7 @@ vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor(double * n, double * o, d
     vtkSmartPointer<vtkPlaneSource> planeSource = vtkSmartPointer<vtkPlaneSource>::New();
     // set plane size
     planeSource->SetOrigin(0, 0, 0);
-    planeSource->SetPoint1(0, height, 0);
+    planeSource->SetPoint1(0, length, 0);
     planeSource->SetPoint2(width, 0, 0);
     // set origin and normal
     planeSource->SetCenter(o);

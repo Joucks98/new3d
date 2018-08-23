@@ -18,7 +18,7 @@ vtkStandardNewMacro(InteractorStylePointCloud);
 InteractorStylePointCloud::InteractorStylePointCloud()
 {
     m_pExtractor = vtkSmartPointer<vtkExtractPolyDataGeometry>::New();
-    interactData = NULL;
+    m_interactData = NULL;
 }
 
 void InteractorStylePointCloud::OnLeftButtonUp()
@@ -28,7 +28,7 @@ void InteractorStylePointCloud::OnLeftButtonUp()
     {
         return;
     }
-    if (interactData != NULL)
+    if (m_interactData != NULL)
     {
         auto picker = GetInteractor()->GetPicker();
         auto pickPts = static_cast<vtkAreaPicker*>(picker)->GetClipPoints();
@@ -53,11 +53,11 @@ void InteractorStylePointCloud::OnLeftButtonUp()
 
 void InteractorStylePointCloud::SetInteractData(const vtkSmartPointer<vtkPolyData>& d)
 {
-    interactData = d;
+    m_interactData = d;
 #if VTK_MAJOR_VERSION <= 5
-    extractGeometry->SetInput(interactData);
+    extractGeometry->SetInput(m_interactData);
 #else
-    m_pExtractor->SetInputData(interactData);
+    m_pExtractor->SetInputData(m_interactData);
 #endif // VTK_MAJOR_VERSION <= 5
 
 }

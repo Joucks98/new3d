@@ -29,7 +29,7 @@ private:
     void showActor(const vtkSmartPointer<vtkPolyData>& polyData);
     vtkSmartPointer<vtkPolyData> GenerateVoi(const vtkSmartPointer<vtkPoints>& pts);
     vtkSmartPointer<vtkExtractPolyDataGeometry> m_pExtractor;
-    vtkSmartPointer<vtkPolyData> interactData;
+    vtkSmartPointer<vtkPolyData> m_interactData;
 
 };
 #endif // !__INTERACTORSTYLEPOINTCLOUD_H__
