@@ -15,6 +15,7 @@
 #include "D:\\Program Files\\eigen\\Eigen\\Eigen"
 
 using namespace Eigen;
+using std::vector;
 
 namespace DIM3 {
     vtkSmartPointer<vtkDoubleArray> vec2vtkDoubleArray(const std::vector<double> vec)
@@ -487,6 +488,122 @@ namespace DIM3 {
 
         return 0;
     }
+
+
+    void heightNormalization(const vector<double>& input, vector<double>* output)
+    {
+        assert(output != nullptr);
+        output->clear();
+        output->resize(input.size());
+        auto mm = std::minmax_element(input.begin(), input.end());
+        double range = *mm.second - *mm.first;
+        double scale = 255 / range;
+        std::transform(input.begin(), input.end(), output->begin(),
+            [scale, &mm](double h) {return floor((h - *mm.first)*scale); });
+    }
+    void histogram256(const vector<int>& normalizedInput, vector<int>* countOutput)
+    {
+        assert(countOutput != nullptr);
+        countOutput->clear();
+        countOutput->resize(256);
+        for (auto i:normalizedInput)
+        {
+            assert(i <= 255);
+            (*countOutput)[i] += 1;
+        }
+    }
+    int otsuThreshold(const vector<int>& hist)
+    {
+        vector<double> w(256), u(256);
+        int num = std::accumulate(hist.begin(), hist.end(), 0);
+        w[0] = 1.0 * hist[0] / num;
+        u[0] = w[0];
+        for (int i = 0; i < 256; ++i)
+        {
+            auto pi = 1.0* hist[i] / num;
+            w[i] = w[i - 1] + pi;
+            u[i] = u[i - 1] + (i + 1)*pi;
+        }
+        vector<double> val(255);//255 separation points
+        for (int i = 1; i < 256; ++i)
+        {
+            auto tmp = u[255] * w[i - 1] - u[i - 1];
+            val[i - 1] = (tmp*tmp) / (w[i - 1] * (1 - w[i - 1]));
+        }
+        return std::max_element(val.begin(), val.end()) - val.begin() + 1;
+    }
+    
+    void getMaskArr(const double* data, int widthStep, int width, int height,
+        int maskWidth, int maskHeight, int r, int c, vector<double>* re)
+    {
+        assert(re != nullptr);
+        re->reserve(maskHeight*maskWidth);
+        int wr = maskWidth >> 1;
+        int hr = maskHeight >> 1;
+        for (size_t v = -wr; v <= wr; ++v)
+        {
+            for (size_t u = -hr; u <= hr; ++u)
+            {
+                int row = r + u;
+                row = std::max(0, row);
+                row = std::min(row, height - 1);
+                int col = c + v;
+                col = std::max(0, col);
+                col = std::min(col, width - 1);
+                int id = row*widthStep + col;
+                re->emplace_back(data[id]);
+            }
+        }
+    }
+    //void medianOnline()
+    //{
+    //    vector<double> maskArr;
+    //    getMaskArr(zData, widthStep, width, height, maskWidth, maskHeight, r, wRadius, &maskArr);
+    //    std::sort(maskArr.begin(), maskArr.end());
+    //    dstData[idxBase + wRadius] = maskArr[maskArr.size() >> 1];
+    //    for (int c = wRadius+1; c < width - wRadius; ++c)
+    //    {
+    //        auto remvoePtr = zData + (r - hRadius)*widthStep + c - wRadius - 1;
+    //        auto addPtr = removePtr + maskWidth;
+    //        for (int k = 0; k < maskHeight; ++k)
+    //        {
+    //            // the last element equal to remove item
+    //            auto rId = std::upper_bound(maskArr.begin(), maskArr.end(), *removePtr) - maskArr.begin() - 1;
+    //            // rId must be exist and non-negative
+    //            if (rId == -1) rId = 0;
+    //            // the insert index for new element
+    //            auto iId = std::upper_bound(maskArr.begin(), maskArr.end(), *addPtr) - maskArr.begin() - 1;
+    //            if (iId != maskArr.size() - 1) // when no element greater than new input
+    //            {
+    //                // move the item greater than new input
+    //                // when iId == -1, move from 0 to rId
+    //                while (rId > iId +1)
+    //                {
+    //                    maskArr[rId] = maskArr[rId - 1];
+    //                    --rId;
+    //                }
+    //                while (rId < iId)
+    //                {
+    //                    maskArr[rId] = maskArr[rId + 1];
+    //                    ++rId;
+    //                }
+    //                maskArr[rId] = *addPtr;
+    //            }
+    //            else
+    //            {
+    //                while (rId < maskArr.size() - 1)
+    //                {
+    //                    maskArr[rId] = maskArr[rId + 1];
+    //                    ++rId;
+    //                }
+    //                maskArr[rId] = *addPtr;
+    //            }
+    //            removePtr += widthStep;
+    //            addPtr += widthStep;                                
+    //        }
+    //        dstData[idxBase + c] = maskArr[maskArr.size() >> 1];
+    //    }// end c
+    //}
 }
 
 
