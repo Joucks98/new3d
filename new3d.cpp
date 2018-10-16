@@ -89,34 +89,34 @@ NEW3D::NEW3D(QWidget *parent) : QMainWindow(parent),
 
     initLookupTable(m_pLookupTable);
 
-    m_pImageViewer = vtkSmartPointer<vtkImageViewer2>::New();
-    vtkSmartPointer<vtkRenderWindowInteractor> imageInterator = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+    VTK_BUILD(vtkImageViewer2, m_pImageViewer);
+    VTK_CREATE(vtkRenderWindowInteractor, imageInterator);
     m_pImageViewer->SetupInteractor(imageInterator);
 
     m_pImageStyle = m_pImageViewer->GetInteractorStyle();
     m_pImageViewer->GetInteractorStyle()->SetInteractionModeToImage3D();
 
-    m_pImageStyleRubber = vtkSmartPointer<vtkInteractorStyleRubberBand2D>::New();
+    VTK_BUILD(vtkInteractorStyleRubberBand2D, m_pImageStyleRubber);
     imageInterator->SetInteractorStyle(m_pImageStyle);
 
-    m_pPointCloudWindow = vtkSmartPointer<vtkRenderWindow>::New();
-    m_pRenderer = vtkSmartPointer<vtkRenderer>::New();
-    m_pPointCloudActor = vtkSmartPointer<vtkActor>::New();
-    m_pCubeAxesActor = vtkSmartPointer<vtkCubeAxesActor>::New();
+    VTK_BUILD(vtkRenderWindow,m_pPointCloudWindow);
+    VTK_BUILD(vtkRenderer, m_pRenderer);
+    VTK_BUILD(vtkActor, m_pPointCloudActor);
+    VTK_BUILD(vtkCubeAxesActor,m_pCubeAxesActor);
     m_pRenderer->AddActor(m_pPointCloudActor);
     m_pRenderer->AddActor(m_pCubeAxesActor);
     m_pPointCloudWindow->AddRenderer(m_pRenderer);
-    vtkSmartPointer<vtkRenderWindowInteractor> pointCloudInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+    VTK_CREATE(vtkRenderWindowInteractor, pointCloudInteractor);
     pointCloudInteractor->SetRenderWindow(m_pPointCloudWindow);
-    m_pPointCloudStyle = vtkSmartPointer<InteractorStylePointCloud>::New();
-    vtkSmartPointer<vtkAreaPicker> areaPicker = vtkSmartPointer<vtkAreaPicker>::New();
+    VTK_BUILD(InteractorStylePointCloud, m_pPointCloudStyle);
+    VTK_CREATE(vtkAreaPicker, areaPicker);
     pointCloudInteractor->SetPicker(areaPicker);
     pointCloudInteractor->SetInteractorStyle(m_pPointCloudStyle);
 
     
-    m_pRoi2DActor = vtkSmartPointer<vtkImageActor>::New();
+    VTK_BUILD(vtkImageActor, m_pRoi2DActor);
 
-    m_pScalarBarWidget = vtkSmartPointer<vtkScalarBarWidget>::New();
+    VTK_BUILD(vtkScalarBarWidget, m_pScalarBarWidget);
 
     m_roi2DMTimeCache = m_pRoi2DActor->GetMTime();
     m_roi3DMTimeCache = 0;
@@ -146,7 +146,7 @@ void NEW3D::on_actionOpen_triggered()
     QByteArray ba = fileName.toLocal8Bit();
     const char* fileNameStr = ba.data();
 
-    vtkSmartPointer<vtkJPEGReader> reader = vtkSmartPointer<vtkJPEGReader>::New();
+    VTK_CREATE(vtkJPEGReader, reader);
     reader->SetFileName(fileNameStr);
     int flag = reader->CanReadFile(fileNameStr);
 
@@ -218,14 +218,14 @@ void NEW3D::on_actionRubber_toggled()
         m_pRoi2DActor->SetVisibility(1);
         iteractor->SetInteractorStyle(m_pImageStyleRubber);
         // Picker to pick pixels
-        vtkSmartPointer<vtkPropPicker> propPicker = vtkSmartPointer<vtkPropPicker>::New();
+        VTK_CREATE(vtkPropPicker, propPicker);
         propPicker->PickFromListOn();
         // Give the picker a prop to pick
         vtkSmartPointer<vtkImageActor> imageActor = m_pImageViewer->GetImageActor();
         propPicker->AddPickList(imageActor);
         // disable interpolation, so we can see each pixel
         imageActor->InterpolateOff();
-        vtkSmartPointer<ImageCallBack> imageCallback = vtkSmartPointer<ImageCallBack>::New();
+        VTK_CREATE(ImageCallBack, imageCallback);
         imageCallback->SetViewer(m_pImageViewer);
         imageCallback->SetPicker(propPicker);
         imageCallback->SetCanvasSource2DActor(m_pRoi2DActor);
@@ -233,7 +233,7 @@ void NEW3D::on_actionRubber_toggled()
         m_pImageStyleRubber->AddObserver(vtkCommand::LeftButtonReleaseEvent, imageCallback);
         m_pImageStyleRubber->AddObserver(vtkCommand::RightButtonPressEvent, imageCallback);
         // 将回调函数和 vtkCallbackCommand 联系起来
-        vtkSmartPointer<vtkCallbackCommand> mouseCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+        VTK_CREATE(vtkCallbackCommand, mouseCallback);
         mouseCallback->SetCallback(CallbackFunc);
         iteractor->AddObserver(vtkCommand::RightButtonPressEvent, mouseCallback);
     }
@@ -450,7 +450,7 @@ void NEW3D::showPointCloud(bool updateOrNot)
     initScalarBar(m_pScalarBarWidget);
     /*if (m_pScalarBarWidget == nullptr)
     {
-        vtkSmartPointer<vtkScalarBarActor> scalarBarActor = vtkSmartPointer<vtkScalarBarActor>::New();
+        VTK_CREATE(vtkScalarBarActor, scalarBarActor);
         scalarBarActor->SetOrientationToHorizontal();
         scalarBarActor->SetLookupTable(m_pLookupTable);
         m_pRenderer->AddActor2D(scalarBarActor);
@@ -478,8 +478,7 @@ void NEW3D::showImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
     
     if (comp != 3)
     {
-        vtkSmartPointer<vtkImageExtractComponents> extractCompFilter =
-            vtkSmartPointer<vtkImageExtractComponents>::New();
+        VTK_CREATE(vtkImageExtractComponents, extractCompFilter);
         extractCompFilter->SetInputData(pImg);
         extractCompFilter->SetComponents(comp);
         extractCompFilter->Update(); 
@@ -514,8 +513,7 @@ void NEW3D::showImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
 
     double range[] = { m_pLookupTable->GetRange()[0], m_pLookupTable->GetRange()[1] };
     //m_pLookupTable->SetRange(minHeight, maxHeight);
-    vtkSmartPointer<vtkImageMapToColors> colorMap =
-        vtkSmartPointer<vtkImageMapToColors>::New();
+    VTK_CREATE(vtkImageMapToColors, colorMap);
     colorMap->SetInputData(source);
     colorMap->SetLookupTable(m_pLookupTable);
     colorMap->GetLookupTable()->SetRange(minHeight, maxHeight);
@@ -527,8 +525,7 @@ void NEW3D::showImage(const vtkSmartPointer<vtkImageData>& pImg, int comp)
 
     
 
-    vtkSmartPointer<vtkImageChangeInformation> changer =
-        vtkSmartPointer<vtkImageChangeInformation>::New();
+    VTK_CREATE(vtkImageChangeInformation, changer);
     changer->SetInputConnection(colorMap->GetOutputPort());
     changer->SetOutputOrigin(0, 0, 0);
     //changer->SetSpacingScale(1/ pImg->GetSpacing()[0], 1/pImg->GetSpacing()[1], 1);
@@ -603,7 +600,7 @@ vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<
        vtkPoints->GetNumberOfPoints() == 0)
         return vtkSmartPointer<vtkPolyData>();
     // initialize cells: one point one cell
-    vtkSmartPointer<vtkCellArray> vertices = vtkSmartPointer<vtkCellArray>::New();
+    VTK_CREATE(vtkCellArray, vertices);
     vertices->Reset();
     vtkIdType num = vtkPoints->GetNumberOfPoints();
     vtkIdType* wptr = vertices->WritePointer(num, 2 * num);
@@ -615,14 +612,14 @@ vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<
     //vertices->SetNumberOfCells(num);
     //for (vtkIdType i = 0; i < num; ++i)
     //{
-    //    vtkSmartPointer<vtkIdList> pid = vtkSmartPointer<vtkIdList>::New();
+    //    VTK_CREATE(vtkIdList, pid);
     //    pid->SetNumberOfIds(1);
     //    pid->SetId(0, i);
     //    //vertices->InsertNextCell(pid);
     //    vertices->GetData()
     //}
 
-    vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New();
+    VTK_CREATE(vtkPolyData, polyData);
     polyData->SetPoints(vtkPoints);
     polyData->SetVerts(vertices);
     
@@ -634,7 +631,7 @@ vtkSmartPointer<vtkPolyData> NEW3D::toBuildPointCloudData(const vtkSmartPointer<
     }
     else
     {
-        vtkSmartPointer<vtkDoubleArray> tmp = vtkSmartPointer<vtkDoubleArray>::New();
+        VTK_CREATE(vtkDoubleArray, tmp);
         tmp->SetName("Color_Field");
         tmp->SetNumberOfComponents(1);
         tmp->SetNumberOfTuples(num);
@@ -679,8 +676,7 @@ vtkSmartPointer<vtkActor> NEW3D::toBuildPolyDataActor(const vtkSmartPointer<vtkP
     if(pData == NULL)
         return vtkSmartPointer<vtkActor>();
 
-    vtkSmartPointer<vtkPolyDataMapper> pMapper =
-        vtkSmartPointer<vtkPolyDataMapper>::New();
+    VTK_CREATE(vtkPolyDataMapper, pMapper);
     pMapper->SetInputData(pData);
 
     //pMapper->SetLookupTable(m_pLookupTable);
@@ -690,7 +686,7 @@ vtkSmartPointer<vtkActor> NEW3D::toBuildPolyDataActor(const vtkSmartPointer<vtkP
     //pMapper->SetScalarModeToUsePointFieldData();
     //pMapper->SelectColorArray("Color_Field");
 
-    vtkSmartPointer<vtkActor> pActor = vtkSmartPointer<vtkActor>::New();
+    VTK_CREATE(vtkActor, pActor);
     pActor->SetMapper(pMapper);
     return pActor;
 }
@@ -705,7 +701,7 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildImageData(vector<Point3d>& point3dVe
     auto img = initImageData(VTK_DOUBLE_MIN, numComp);
 
 
-    vtkSmartPointer<vtkDoubleArray> heightField = vtkSmartPointer<vtkDoubleArray>::New();
+    VTK_CREATE(vtkDoubleArray, heightField);
     heightField->SetName("Height_Field");
     heightField->SetNumberOfComponents(1);
     heightField->SetNumberOfTuples(img->GetNumberOfPoints());
@@ -773,7 +769,7 @@ vtkSmartPointer<vtkImageData> NEW3D::toBuildHeightImageData(const vtkSmartPointe
 vtkSmartPointer<vtkImageData> NEW3D::initImageData(double initZ, int numComp)
 {
     // ... dig into
-    vtkSmartPointer<vtkImageData> img = vtkSmartPointer<vtkImageData>::New();
+    VTK_CREATE(vtkImageData, img);
     double x_offset = -16.0, y_offset = -14.99, z_offset = -5.99;
     double dist_x = 0.016, dist_y = 0.02;
     int iNum = 2000, jNum = 1500;
@@ -781,7 +777,7 @@ vtkSmartPointer<vtkImageData> NEW3D::initImageData(double initZ, int numComp)
     img->SetDimensions(iNum, jNum, 1);
     img->SetOrigin(x_offset, y_offset, z_offset);
     img->SetSpacing(dist_x, dist_y, 0);
-    auto info = vtkSmartPointer<vtkInformation>::New();
+    VTK_CREATE(vtkInformation, info);
     img->SetScalarType(VTK_DOUBLE, info);
     img->SetNumberOfScalarComponents(componentNum, info); // x, y, z
     img->AllocateScalars(info);
@@ -850,8 +846,7 @@ vtkSmartPointer<vtkPoints> NEW3D::GetImageRoiPointsWorldData() const
     int dim[6] = { minIdx, maxIdx, minIdy, maxIdy, 0, 0 };
     auto pts = static_cast<double*>(m_pImage->GetScalarPointerForExtent(dim));*/
 
-    vtkSmartPointer<vtkExtractVOI> extractVOI =
-        vtkSmartPointer<vtkExtractVOI>::New();
+    VTK_CREATE(vtkExtractVOI, extractVOI);
     extractVOI->SetInputData(m_pImage);
     extractVOI->SetVOI(minIdx, maxIdx, minIdy, maxIdy, 0, 0);
     extractVOI->Update();
@@ -914,7 +909,7 @@ vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor(double * n, double * o, d
     }
 
     // build plane actor
-    vtkSmartPointer<vtkPlaneSource> planeSource = vtkSmartPointer<vtkPlaneSource>::New();
+    VTK_CREATE(vtkPlaneSource, planeSource);
     // set plane size
     planeSource->SetOrigin(0, 0, 0);
     planeSource->SetPoint1(0, length, 0);
@@ -923,9 +918,9 @@ vtkSmartPointer<vtkActor> NEW3D::generateFitPlaneActor(double * n, double * o, d
     planeSource->SetCenter(o);
     planeSource->SetNormal(n);
     planeSource->Update();
-    vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+    VTK_CREATE(vtkPolyDataMapper, mapper);
     mapper->SetInputConnection(planeSource->GetOutputPort());
-    vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+    VTK_CREATE(vtkActor, actor);
     actor->SetMapper(mapper);
     actor->GetProperty()->SetRepresentationToSurface();
     actor->GetProperty()->SetPointSize(1);
@@ -970,7 +965,7 @@ void NEW3D::updateCubeAxesActor()
 void NEW3D::initScalarBar(vtkSmartPointer<vtkScalarBarWidget>& scalarBarWidget)
 {
     // show color bar
-    vtkSmartPointer<vtkScalarBarActor> scalarBarActor = vtkSmartPointer<vtkScalarBarActor>::New();
+    VTK_CREATE(vtkScalarBarActor, scalarBarActor);
     scalarBarActor->SetOrientationToHorizontal();
     //scalarBarActor->SetOrientationToVertical();
     scalarBarActor->SetLookupTable(m_pLookupTable);    
@@ -982,9 +977,8 @@ void NEW3D::initScalarBar(vtkSmartPointer<vtkScalarBarWidget>& scalarBarWidget)
 void NEW3D::initOrientationMarker()
 {
     ///////////////////////////// vtkOrientationMarkerWidget
-    vtkSmartPointer<vtkAxesActor> iconActor = vtkSmartPointer<vtkAxesActor>::New();
-    vtkSmartPointer<vtkOrientationMarkerWidget> orientationWidget =
-        vtkSmartPointer<vtkOrientationMarkerWidget>::New();
+    VTK_CREATE(vtkAxesActor, iconActor);
+    VTK_CREATE(vtkOrientationMarkerWidget, orientationWidget);
     orientationWidget->SetOutlineColor(0.9300, 0.5700, 0.1300);
     orientationWidget->SetInteractor(m_pPointCloudWindow->GetInteractor());
     orientationWidget->SetOrientationMarker(iconActor);
@@ -1006,7 +1000,7 @@ int NEW3D::initLookupTable(vtkSmartPointer<vtkLookupTable>& lut, double backGrou
     lut->SetUseBelowRangeColor(1);
     lut->SetUseAboveRangeColor(1); 
     lut->SetRange(-5, 3);
-    vtkSmartPointer<vtkLookupTable> tmpTable = vtkSmartPointer<vtkLookupTable>::New();
+    VTK_CREATE(vtkLookupTable, tmpTable);
     tmpTable->Build();
     auto num = tmpTable->GetNumberOfColors();
     // reverse color table
